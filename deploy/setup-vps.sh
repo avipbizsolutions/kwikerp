@@ -134,7 +134,8 @@ if ! ls /etc/nginx/sites-enabled/ | grep -q "^$DOMAIN.conf$"; then
   clpctl site:add:reverse-proxy --domainName=$DOMAIN --reverseProxyUrl=http://127.0.0.1:$PORT \
     --siteUser=kwikapi --siteUserPassword="$(openssl rand -hex 16)"
 fi
-if [ ! -s /etc/nginx/ssl-certificates/$DOMAIN.crt ] || openssl x509 -in /etc/nginx/ssl-certificates/$DOMAIN.crt -noout -issuer | grep -qi "CloudPanel\|self"; then
+# CloudPanel starts a new site on a self-signed certificate; replace it with Let's Encrypt.
+if ! openssl x509 -in /etc/nginx/ssl-certificates/$DOMAIN.crt -noout -issuer 2>/dev/null | grep -q "Let's Encrypt"; then
   clpctl lets-encrypt:install:certificate --domainName=$DOMAIN || echo "Certificate not issued yet (DNS may still be spreading); run this script again in a few minutes."
 fi
 
