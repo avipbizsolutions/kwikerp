@@ -1,0 +1,86 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  api:
+    name: API tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create database
+        run: |
+          psql -h localhost -U postgres -c 'CREATE DATABASE kwikerp'
+          for f in db/migrations/*.sql db/seed/0001_troika_setup.sql db/seed/0002_troika_items.sql; do
+            psql -h localhost -U postgres -d kwikerp -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+          psql -h localhost -U postgres -c "CREATE ROLE kwik_api LOGIN PASSWORD 'ci' IN ROLE kwik_app"
+      - name: Build and test
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgres://kwik_api:ci@localhost/kwikerp
+          ADMIN_DATABASE_URL: postgres://postgres:ci@localhost/kwikerp
+          JWT_SECRET: ci-jwt
+          APPROVAL_SECRET: ci-approval
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+  pos:
+    name: Tablet APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android project files
+        working-directory: apps/pos
+        run: |
+          # The repo holds only our code; Flutter's Android scaffolding is generated here.
+          flutter create --platforms=android --org in.kwikerp --project-name kwikerp_pos .
+          rm -f test/widget_test.dart   # template test for the counter demo app
+          # App name and internet permission
+          sed -i 's/android:label="kwikerp_pos"/android:label="KwikERP POS"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || \
+            sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+      - name: Get packages
+        working-directory: apps/pos
+        run: flutter pub get
+      - name: Analyze
+        working-directory: apps/pos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Unit tests
+        working-directory: apps/pos
+        run: flutter test
+      - name: Build APK
+        working-directory: apps/pos
+        run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kwikerp-pos-apk
+          path: apps/pos/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

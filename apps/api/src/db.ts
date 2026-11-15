@@ -1,6 +1,11 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
 import { config } from './config';
+
+// Keep DATE columns as 'YYYY-MM-DD' text. Converting them to JavaScript Date
+// objects would shift them by the server's time zone (a bill dated 15 Nov
+// could arrive at the tablet as 14 Nov).
+types.setTypeParser(1082, (v: string) => v);
 
 @Injectable()
 export class Db implements OnModuleDestroy {
