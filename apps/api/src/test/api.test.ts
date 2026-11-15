@@ -75,6 +75,15 @@ test('cashier logs in on the tablet', async () => {
   approvalKey = r.body.device.approvalKey;
 });
 
+test('tablet can be set up with the short code DD3-<tablet>', async () => {
+  const r = await call('POST', '/auth/login', '', {
+    tenantCode: 'troika', phone: '9111111111', pin: '1234', deviceId: ` dd3-${deviceCode.toLowerCase()} ` });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.device.id, deviceId);
+  const bad = await call('POST', '/auth/login', '', { tenantCode: 'troika', phone: '9111111111', pin: '1234', deviceId: 'DD9-T1' });
+  assert.equal(bad.status, 401);
+});
+
 test('owner logs in on the manager app', async () => {
   const r = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone: '9222222222', pin: '5678' });
   assert.equal(r.status, 201);

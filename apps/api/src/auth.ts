@@ -50,7 +50,7 @@ interface LoginBody {
   tenantCode: string;
   phone: string;
   pin: string;
-  deviceId?: string; // tablets send their registered device id
+  deviceId?: string; // tablets send their tablet code (e.g. DD3-T1) or the full device id
 }
 
 @Controller('auth')
@@ -81,7 +81,9 @@ export class AuthController {
           `SELECT d.id, d.code, d.location_id, l.code AS location_code, l.name AS location_name,
                   l.company_id, l.default_price_level_id
              FROM device d JOIN location l ON l.id = d.location_id
-            WHERE d.id = $1 AND d.is_active AND d.deleted_at IS NULL`, [body.deviceId])).rows[0];
+            WHERE (d.id::text = lower($1) OR upper(l.code || '-' || d.code) = upper($1))
+              AND d.is_active AND d.deleted_at IS NULL AND l.deleted_at IS NULL`,
+          [body.deviceId.trim().replace(/\s+/g, '')])).rows[0];
         if (!device) throw new UnauthorizedException('This tablet is not registered');
       }
 

@@ -101,6 +101,12 @@ class PosState extends ChangeNotifier {
     token = res['token'] as String;
     user = Map<String, dynamic>.from(res['user'] as Map);
     device = DeviceInfo(Map<String, dynamic>.from(res['device'] as Map));
+    // Setup may have used the short tablet code (DD3-T1); keep the full id from now on.
+    final fullId = device!.m['id'] as String?;
+    if (fullId != null && fullId != deviceId) {
+      deviceId = fullId;
+      await db.set('device_id', deviceId);
+    }
     await db.set('token', token);
     await db.set('user', jsonEncode(user));
     await db.set('device', jsonEncode(device!.m));
