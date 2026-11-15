@@ -12,5 +12,7 @@ export const config = {
   jwtSecret: required('JWT_SECRET'),
   // Secret behind offline approval codes. Each device gets a key derived from it.
   approvalSecret: required('APPROVAL_SECRET'),
+  // Folder holding kwikerp-pos.apk, served at /api/download/pos.apk
+  downloadDir: process.env.DOWNLOAD_DIR ?? '/opt/kwikerp/downloads',
   tokenHours: Number(process.env.TOKEN_HOURS ?? 24 * 30),
 };

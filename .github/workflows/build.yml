@@ -47,6 +47,8 @@ jobs:
   pos:
     name: Tablet APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -84,3 +86,13 @@ jobs:
           name: kwikerp-pos-apk
           path: apps/pos/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+      - name: Publish the app for the server to pick up
+        # The VPS serves the newest build at https://api.kwikerp.cloud/api/download/pos.apk
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p /tmp/apk && cp apps/pos/build/app/outputs/flutter-apk/app-release.apk /tmp/apk/kwikerp-pos.apk
+          cd /tmp/apk
+          git init -q -b apk
+          git add kwikerp-pos.apk
+          git -c user.name=ci -c user.email=ci@kwikerp.cloud commit -qm "App build ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" apk

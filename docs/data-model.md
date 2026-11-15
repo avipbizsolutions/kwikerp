@@ -15,7 +15,7 @@ Schema: `db/migrations/0001_core.sql` (PostgreSQL 16, schema `kwik`).
 ## Items and prices
 
 - `unit`: PC, KG, L, TRAY, BOX (rows, not code).
-- `item`: one product. `base_unit_id` is the smallest unit sold (a pouch, a cup, a kg of loose sweet). `sold_by_weight` items read the scale.
+- `item`: one product. `base_unit_id` is the smallest unit sold (a pouch, a cup, a kg of loose sweet). `sold_by_weight` items ask the cashier for the weight (typed in; the counters don't connect the scale to the tablet).
 - `item_pack`: other units the item moves in, with `factor` = base units per pack. Dahi 200 g: base PC, TRAY factor 6. Gold milk: base PC (500 ml pouch), L factor 2.
 - `price_level`: open-ended list (Consumer, Retailer, Distributor, Franchisee, Special today). A new channel is a new row. `derive_from_id` + `derive_pct` can fill a new level from an existing one.
 - `item_price`: price of an item, in a unit, at a level, from a date (`valid_from`), optionally for one location. Price history is kept; the view `item_price_current` gives today's price.

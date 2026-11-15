@@ -1,7 +1,10 @@
 import 'reflect-metadata';
-import { Controller, Get, Module } from '@nestjs/common';
+import { Controller, Get, Module, NotFoundException, Res } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
 import { config } from './config';
@@ -19,8 +22,19 @@ class HealthController {
   }
 }
 
+// The tablet app, so outlets can install it without a GitHub login.
+@Controller('download')
+class DownloadController {
+  @Get('pos.apk')
+  apk(@Res() res: Response) {
+    const file = join(config.downloadDir, 'kwikerp-pos.apk');
+    if (!existsSync(file)) throw new NotFoundException('App file not uploaded yet');
+    res.download(file, 'kwikerp-pos.apk', { headers: { 'Content-Type': 'application/vnd.android.package-archive' } });
+  }
+}
+
 @Module({
-  controllers: [HealthController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

@@ -63,9 +63,6 @@ class _WeightDialogState extends State<_WeightDialog> {
           const SizedBox(height: 12),
           Text('Amount: ${money(r2(widget.rate * _kg))}',
               textAlign: TextAlign.right, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Kc.navy)),
-          const SizedBox(height: 4),
-          const Text('Reading the weight straight from the scale comes in the next update.',
-              style: TextStyle(fontSize: 12, color: Kc.muted)),
         ]),
       ),
       actions: [
@@ -180,7 +177,7 @@ class _NewCustomerDialogState extends State<_NewCustomerDialog> {
               controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile')),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _categoryId,
+            initialValue: _categoryId,
             decoration: const InputDecoration(labelText: 'Type'),
             items: [
               for (final c in cats) DropdownMenuItem(value: c['id'] as String, child: Text(c['name'] as String)),
