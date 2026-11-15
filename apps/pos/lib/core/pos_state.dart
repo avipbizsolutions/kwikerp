@@ -137,7 +137,23 @@ class PosState extends ChangeNotifier {
 
   Future<void> reloadCatalog() async {
     catalog = await Catalog.load(db, device?.locationId);
+    await refreshBestSellers();
     notifyListeners();
+  }
+
+  /// Items this tablet sold most often in the last 30 days (by number of bills).
+  List<String> bestSellers = [];
+
+  Future<void> refreshBestSellers() async {
+    final since = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+    final count = <String, int>{};
+    for (final l in await db.docs('sales_invoice_line', since: since)) {
+      final id = l['item_id'] as String?;
+      if (id != null) count[id] = (count[id] ?? 0) + 1;
+    }
+    final ids = count.keys.where((id) => catalog?.items[id]?.onPos ?? false).toList()
+      ..sort((a, b) => count[b]!.compareTo(count[a]!));
+    bestSellers = ids.take(16).toList();
   }
 
   // ---------------------------------------------------------------- shift

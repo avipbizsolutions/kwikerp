@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/billing.dart';
@@ -8,6 +9,11 @@ import '../core/printer.dart';
 import 'dialogs.dart';
 import 'shift_screens.dart';
 import 'theme.dart';
+
+/// Billing screen, laid out for a tablet standing upright at the counter
+/// (also works sideways): categories down the left, items in a grid that
+/// doubles as the cart, and the total with Save fixed at the bottom.
+const _bestSellers = '__best__';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key});
@@ -19,77 +25,178 @@ class BillingScreen extends StatefulWidget {
 class _BillingScreenState extends State<BillingScreen> {
   String? _categoryId;
   String _search = '';
+  final _searchCtl = TextEditingController();
+  String _mode = 'cash';
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final s = context.read<PosState>();
+    if (s.bill.isEmpty || _saving) return;
+    if (_mode == 'credit') {
+      await startPayment(context, mode: 'credit');
+      if (mounted) setState(() => _mode = 'cash');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final saved = await s.payNow(_mode);
+      if (mounted) {
+        setState(() => _mode = 'cash');
+        await showReceipt(context, saved);
+      }
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<PosState>();
     final cat = s.catalog!;
-    final usedCategories = cat.categories.where((c) => cat.items.values.any((i) => i.onPos && i.categoryId == c.id)).toList();
-    _categoryId ??= usedCategories.isEmpty ? null : usedCategories.first.id;
+    final best = s.bestSellers;
+    final categories = cat.categories.where((c) => cat.items.values.any((i) => i.onPos && i.categoryId == c.id)).toList();
+    _categoryId ??= best.isNotEmpty ? _bestSellers : (categories.isEmpty ? null : categories.first.id);
+    if (_categoryId == _bestSellers && best.isEmpty) _categoryId = categories.isEmpty ? null : categories.first.id;
+    if (_mode == 'credit' && s.bill.customer == null) _mode = 'cash';
 
     final q = _search.trim().toLowerCase();
-    final items = cat.items.values
-        .where((i) => i.onPos && (q.isNotEmpty ? i.name.toLowerCase().contains(q) || i.code == q : i.categoryId == _categoryId))
-        .toList()
-      ..sort((a, b) => a.posSort.compareTo(b.posSort));
+    List<Item> items;
+    if (q.isNotEmpty) {
+      items = cat.items.values.where((i) => i.onPos && (i.name.toLowerCase().contains(q) || i.code == q)).toList()
+        ..sort((a, b) => a.posSort.compareTo(b.posSort));
+    } else if (_categoryId == _bestSellers) {
+      items = [for (final id in best) cat.items[id]!];
+    } else {
+      items = cat.items.values.where((i) => i.onPos && i.categoryId == _categoryId).toList()
+        ..sort((a, b) => a.posSort.compareTo(b.posSort));
+    }
+
+    // How many lines of the current bill fall in each category (shown on the rail).
+    final inBill = <String?, int>{};
+    for (final l in s.bill.lines) {
+      inBill[l.item.categoryId] = (inBill[l.item.categoryId] ?? 0) + 1;
+    }
+    final bestInBill = s.bill.lines.where((l) => best.contains(l.item.id)).length;
 
     return Scaffold(
-      body: Column(children: [
-        _TopBar(),
-        Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  TextField(
-                    decoration: const InputDecoration(hintText: 'Search item or type item code', prefixIcon: Icon(Icons.search)),
-                    onChanged: (v) => setState(() => _search = v),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final c in usedCategories)
-                      ChoiceChip(
-                        label: Text(c.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                        selected: q.isEmpty && c.id == _categoryId,
-                        onSelected: (_) => setState(() => _categoryId = c.id),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      ),
-                  ]),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 220, mainAxisExtent: 118, crossAxisSpacing: 12, mainAxisSpacing: 12),
-                      itemCount: items.length,
-                      itemBuilder: (context, i) => _ItemTile(item: items[i]),
+      backgroundColor: Kc.ground,
+      body: SafeArea(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const _TopBar(),
+          const _CustomerStrip(),
+          Expanded(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // ---- category rail
+              Container(
+                width: 150,
+                color: const Color(0xFFE3E8EE),
+                child: ListView(padding: const EdgeInsets.symmetric(vertical: 6), children: [
+                  if (best.isNotEmpty)
+                    _RailButton(
+                      label: 'Best sellers',
+                      count: bestInBill,
+                      selected: q.isEmpty && _categoryId == _bestSellers,
+                      highlight: const Color(0xFFFFC94D),
+                      onTap: () => setState(() {
+                        _categoryId = _bestSellers;
+                        _clearSearch();
+                      }),
                     ),
+                  for (final c in categories)
+                    _RailButton(
+                      label: c.name,
+                      count: inBill[c.id] ?? 0,
+                      selected: q.isEmpty && c.id == _categoryId,
+                      onTap: () => setState(() {
+                        _categoryId = c.id;
+                        _clearSearch();
+                      }),
+                    ),
+                ]),
+              ),
+              // ---- search + item grid
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                    child: SizedBox(
+                      height: 44,
+                      child: TextField(
+                        controller: _searchCtl,
+                        decoration: InputDecoration(
+                          hintText: 'Search item or code',
+                          prefixIcon: const Icon(Icons.search),
+                          contentPadding: EdgeInsets.zero,
+                          suffixIcon: q.isEmpty
+                              ? null
+                              : IconButton(icon: const Icon(Icons.close), onPressed: () => setState(_clearSearch)),
+                        ),
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: items.isEmpty
+                        ? const Center(child: Text('No items', style: TextStyle(color: Kc.muted)))
+                        : GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+                            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 170, mainAxisExtent: 112, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                            itemCount: items.length,
+                            itemBuilder: (context, i) => _ItemTile(item: items[i]),
+                          ),
                   ),
                 ]),
               ),
-            ),
-            const SizedBox(width: 420, child: _CartPanel()),
-          ]),
-        ),
-      ]),
+            ]),
+          ),
+          const _BillLine(),
+          _BottomBar(
+            mode: _mode,
+            saving: _saving,
+            onMode: (m) => setState(() => _mode = m),
+            onSave: _save,
+          ),
+        ]),
+      ),
     );
+  }
+
+  void _clearSearch() {
+    _search = '';
+    _searchCtl.clear();
   }
 }
 
+// ------------------------------------------------------------------ top bar
+
 class _TopBar extends StatelessWidget {
+  const _TopBar();
+
   @override
   Widget build(BuildContext context) {
     final s = context.watch<PosState>();
     return Container(
-      height: 56,
+      height: 52,
       color: Kc.navy,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.only(left: 16, right: 4),
       child: Row(children: [
-        const Text('KwikERP', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-        const SizedBox(width: 16),
         Expanded(
-          child: Text('${s.device!.locationName} · Tablet ${s.device!.code} · ${s.user!['name']}',
-              style: const TextStyle(color: Color(0xFFC9D6E6), fontSize: 14), overflow: TextOverflow.ellipsis),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(s.device!.locationName,
+                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis),
+            Text('Tablet ${s.device!.code} · ${s.user!['name']}',
+                style: const TextStyle(color: Color(0xFFC9D6E6), fontSize: 12), overflow: TextOverflow.ellipsis),
+          ]),
         ),
         ListenableBuilder(
           listenable: s.sync!,
@@ -97,21 +204,20 @@ class _TopBar extends StatelessWidget {
             final sync = s.sync!;
             final ok = sync.online && sync.pending == 0;
             final text = sync.online
-                ? (sync.pending == 0 ? 'Online · all synced' : 'Online · ${sync.pending} to sync')
-                : 'Offline · ${sync.pending} waiting to sync';
+                ? (sync.pending == 0 ? 'All synced' : '${sync.pending} to sync')
+                : 'Offline · ${sync.pending} waiting';
             return InkWell(
               onTap: sync.syncNow,
               borderRadius: BorderRadius.circular(999),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(color: ok ? Kc.greenBg : Kc.amberBg, borderRadius: BorderRadius.circular(999)),
                 child: Text(text,
-                    style: TextStyle(color: ok ? Kc.greenInk : Kc.amberInk, fontSize: 13, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: ok ? Kc.greenInk : Kc.amberInk, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             );
           },
         ),
-        const SizedBox(width: 8),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.white),
           onSelected: (v) async {
@@ -140,9 +246,132 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+// ------------------------------------------------------- customer and hold
+
+class _CustomerStrip extends StatelessWidget {
+  const _CustomerStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<PosState>();
+    final cat = s.catalog!;
+    final bill = s.bill;
+    final cust = bill.customer;
+    final rule = cust == null ? null : cat.creditRule(cust);
+    final out = cust == null ? 0.0 : (cat.outstanding[cust.id] ?? 0);
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+      child: Row(children: [
+        Expanded(
+          child: InkWell(
+            onTap: () async {
+              final c = await pickCustomer(context);
+              if (c != null) s.setCustomer(c);
+            },
+            child: Row(children: [
+              const Icon(Icons.person_outline, color: Kc.muted),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(cust?.name ?? 'Walk-in customer · tap to choose',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
+                  Text(
+                    cust == null
+                        ? '${cat.levelName(bill.levelId)} rates'
+                        : '${cat.levelName(bill.levelId)} rates · due ${money(out, paise: false)}'
+                            '${rule?.maxOutstanding == null ? '' : ' · limit ${money(rule!.maxOutstanding!, paise: false)}'}',
+                    style: const TextStyle(fontSize: 12, color: Kc.muted),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+        if (cust != null)
+          IconButton(tooltip: 'Back to walk-in', icon: const Icon(Icons.close), onPressed: () => s.setCustomer(null)),
+        if (s.held.isNotEmpty)
+          PopupMenuButton<Bill>(
+            tooltip: 'Held bills',
+            onSelected: s.resumeBill,
+            itemBuilder: (_) => [
+              for (final h in s.held)
+                PopupMenuItem(
+                  value: h,
+                  child: Text('${h.customer?.name ?? 'Walk-in'} · ${h.lines.length} items · '
+                      '${money(h.totals(s.companyState).total, paise: false)}'),
+                ),
+            ],
+            child: Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(color: Kc.amberBg, borderRadius: BorderRadius.circular(8)),
+              child: Text('Held (${s.held.length})',
+                  style: const TextStyle(color: Kc.amberInk, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(80, 40)),
+          onPressed: bill.isEmpty ? null : s.holdBill,
+          child: const Text('HOLD'),
+        ),
+      ]),
+    );
+  }
+}
+
+// ------------------------------------------------------------ category rail
+
+class _RailButton extends StatelessWidget {
+  const _RailButton({required this.label, required this.count, required this.selected, required this.onTap, this.highlight});
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? (highlight ?? Kc.navy) : (count > 0 ? Kc.greenBg : Colors.white);
+    final fg = selected && highlight == null ? Colors.white : Kc.ink;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            child: Text(count > 0 ? '$label ($count)' : label,
+                style: TextStyle(fontSize: 14, color: fg, fontWeight: count > 0 || selected ? FontWeight.w700 : FontWeight.w500)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------- item tile
+
 class _ItemTile extends StatelessWidget {
   const _ItemTile({required this.item});
   final Item item;
+
+  Future<void> _tap(BuildContext context, PosState s, double price, BillLine? line) async {
+    try {
+      if (item.soldByWeight) {
+        final kg = await askWeight(context, item, price, line?.qty);
+        if (kg != null) s.addItem(item, kg, replace: true);
+      } else {
+        s.addItem(item, 1);
+      }
+    } catch (e) {
+      if (context.mounted) showError(context, e);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,52 +379,131 @@ class _ItemTile extends StatelessWidget {
     final cat = s.catalog!;
     final price = cat.price(item.id, item.baseUnitId, s.bill.levelId);
     final line = s.bill.lineFor(item.id, item.baseUnitId);
-    final colour = Kc.hex(cat.categories.where((c) => c.id == item.categoryId).firstOrNull?.colour);
-    return Material(
-      color: colour,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: line != null ? Kc.blue : const Color(0x14000000), width: line != null ? 2 : 1),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: price == null
-            ? null
-            : () async {
-                try {
-                  if (item.soldByWeight) {
-                    final kg = await askWeight(context, item, price, line?.qty);
-                    if (kg != null) s.addItem(item, kg, replace: true);
-                  } else {
-                    s.addItem(item, 1);
-                  }
-                } catch (e) {
-                  if (context.mounted) showError(context, e);
-                }
-              },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.name,
-                maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.2)),
-            Text(item.soldByWeight ? 'By weight' : cat.unitCode(item.baseUnitId).toLowerCase(),
-                style: const TextStyle(fontSize: 13, color: Kc.muted)),
-            const Spacer(),
-            Row(children: [
-              Expanded(
-                child: Text(
-                    price == null ? 'No price' : '${money(price).replaceAll('.00', '')}${item.soldByWeight ? '/kg' : ''}',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: price == null ? Kc.red : Kc.navy)),
-              ),
-              if (line != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
-                  decoration: BoxDecoration(color: Kc.blue, borderRadius: BorderRadius.circular(999)),
-                  child: Text(qtyText(line.qty, item.soldByWeight),
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+    final picked = line != null;
+    return Stack(clipBehavior: Clip.none, children: [
+      Positioned.fill(
+        child: Material(
+          color: picked ? const Color(0xFFB9EBC4) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: picked ? const Color(0xFF2E9E4F) : const Color(0x1A000000), width: picked ? 2 : 1),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: price == null ? null : () => _tap(context, s, price, line),
+            onLongPress: price == null
+                ? null
+                : () async {
+                    if (item.soldByWeight) return _tap(context, s, price, line);
+                    final q = await _askQty(context, item, line?.qty);
+                    if (q != null) s.addItem(item, q, replace: true);
+                  },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Expanded(
+                  child: Center(
+                    child: Text(item.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, height: 1.15)),
+                  ),
                 ),
-            ]),
+                Row(children: [
+                  _box(line != null ? qtyText(line.qty, item.soldByWeight) : '0', picked),
+                  const Spacer(),
+                  _box(
+                    price == null ? 'No price' : '${_rate(price)}${item.soldByWeight ? '/kg' : ''}',
+                    false,
+                    colour: price == null ? Kc.red : Kc.ink,
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      ),
+      if (picked)
+        Positioned(
+          top: -4,
+          right: -4,
+          child: GestureDetector(
+            // Takes one off; a weighed item is removed entirely.
+            onTap: () => item.soldByWeight ? s.addItem(item, 0, replace: true) : s.addItem(item, -1),
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(color: const Color(0xFFD93025), borderRadius: BorderRadius.circular(6)),
+              child: const Icon(Icons.remove, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+    ]);
+  }
+
+  static String _rate(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+  Widget _box(String text, bool strong, {Color colour = Kc.ink}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: strong ? Colors.white : null,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: strong ? const Color(0xFF2E9E4F) : Kc.line),
+        ),
+        child: Text(text,
+            style: TextStyle(fontSize: 14, fontWeight: strong ? FontWeight.w800 : FontWeight.w600, color: colour)),
+      );
+}
+
+Future<double?> _askQty(BuildContext context, Item item, double? current) {
+  final ctl = TextEditingController(text: current == null ? '' : qtyText(current, false));
+  return showDialog<double>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(item.name),
+      content: TextField(
+        controller: ctl,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        decoration: const InputDecoration(labelText: 'Quantity'),
+        onSubmitted: (v) => Navigator.pop(ctx, double.tryParse(v) ?? 0),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, double.tryParse(ctl.text) ?? 0), child: const Text('OK')),
+      ],
+    ),
+  );
+}
+
+// ------------------------------------------- bill summary line and details
+
+class _BillLine extends StatelessWidget {
+  const _BillLine();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<PosState>();
+    final bill = s.bill;
+    if (bill.isEmpty) return const SizedBox.shrink();
+    final text = bill.lines.map((l) => '${l.item.name} ×${qtyText(l.qty, l.item.soldByWeight)}').join(' · ');
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => _showBillDetails(context),
+        child: Container(
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Kc.line))),
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: Row(children: [
+            Expanded(
+              child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+            ),
+            const SizedBox(width: 6),
+            const Text('DETAILS', style: TextStyle(color: Kc.blue, fontWeight: FontWeight.w700, fontSize: 13)),
+            const Icon(Icons.expand_less, color: Kc.blue),
           ]),
         ),
       ),
@@ -203,122 +511,79 @@ class _ItemTile extends StatelessWidget {
   }
 }
 
-class _CartPanel extends StatelessWidget {
-  const _CartPanel();
+Future<void> _showBillDetails(BuildContext context) => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ChangeNotifierProvider.value(
+        value: context.read<PosState>(),
+        child: const _BillDetails(),
+      ),
+    );
+
+class _BillDetails extends StatelessWidget {
+  const _BillDetails();
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<PosState>();
-    final cat = s.catalog!;
     final bill = s.bill;
+    if (bill.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) Navigator.of(context).maybePop();
+      });
+      return const SizedBox(height: 80);
+    }
     final t = bill.totals(s.companyState);
-    final cust = bill.customer;
-    final rule = cust == null ? null : cat.creditRule(cust);
-    final out = cust == null ? 0.0 : (cat.outstanding[cust.id] ?? 0);
-
-    return Container(
-      decoration: const BoxDecoration(color: Colors.white, border: Border(left: BorderSide(color: Color(0xFFD5DCE3)))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              Expanded(
-                child: Text(cust?.name ?? 'Walk-in customer',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(color: Kc.blueTint, borderRadius: BorderRadius.circular(6)),
-                child: Text('${cat.levelName(bill.levelId)} rates',
-                    style: const TextStyle(color: Kc.navy, fontWeight: FontWeight.w600, fontSize: 13)),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.person_search),
-                  label: const Text('Customer'),
-                  onPressed: () async {
-                    final c = await pickCustomer(context);
-                    if (c != null) s.setCustomer(c);
-                  },
-                ),
-              ),
-              if (cust != null) ...[
-                const SizedBox(width: 8),
-                OutlinedButton(onPressed: () => s.setCustomer(null), child: const Text('Walk-in')),
-              ],
-            ]),
-            if (cust != null && rule != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(color: Kc.ground, borderRadius: BorderRadius.circular(8)),
-                child: Text(
-                  'Outstanding ${money(out, paise: false)} · '
-                  '${rule.maxOutstanding == null ? 'no amount limit' : 'limit ${money(rule.maxOutstanding!, paise: false)}'}'
-                  ' (${rule.source == 'customer' ? 'own limit' : rule.source == 'category' ? 'category limit' : 'no limit set'})',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF33414F)),
-                ),
-              ),
-            ],
-          ]),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: bill.isEmpty
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('Tap items to start a bill', style: TextStyle(color: Kc.muted, fontSize: 15)),
-                    if (s.held.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      for (final h in s.held)
-                        TextButton(
-                          onPressed: () => s.resumeBill(h),
-                          child: Text('Resume held bill · ${h.customer?.name ?? 'Walk-in'} · ${h.lines.length} items'),
-                        ),
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Text('${bill.customer?.name ?? 'Walk-in customer'} · ${bill.lines.length} items',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.delete_outline, color: Kc.red),
+              label: const Text('Clear bill', style: TextStyle(color: Kc.red)),
+              onPressed: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    title: const Text('Clear this bill?'),
+                    content: const Text('All items in the current bill will be removed.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('No')),
+                      FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Clear')),
                     ],
-                  ]),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  itemCount: bill.lines.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) => _CartLine(line: bill.lines[i]),
-                ),
-        ),
-        Container(
-          color: const Color(0xFFF8FAFB),
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _sumRow('Items ${bill.lines.length} · Taxable', money(t.taxable)),
-            _sumRow(t.igst > 0 ? 'IGST' : 'CGST + SGST', money(t.gst)),
-            _sumRow('Round off', '${t.roundOff >= 0 ? '+' : ''}${money(t.roundOff)}'),
-            const SizedBox(height: 4),
-            Row(children: [
-              const Expanded(child: Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-              Text(money(t.total, paise: false),
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: Kc.navy)),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              SizedBox(
-                width: 110,
-                child: OutlinedButton(onPressed: bill.isEmpty ? null : s.holdBill, child: const Text('Hold')),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: bill.isEmpty ? null : () => startPayment(context),
-                  child: Text('Pay ${money(t.total, paise: false)}'),
-                ),
-              ),
-            ]),
+                  ),
+                );
+                if (ok == true) s.clearBill();
+              },
+            ),
           ]),
-        ),
-      ]),
+          const Divider(),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: bill.lines.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) => _CartLine(line: bill.lines[i]),
+            ),
+          ),
+          const Divider(),
+          _sumRow('Taxable', money(t.taxable)),
+          _sumRow(t.igst > 0 ? 'IGST' : 'CGST + SGST', money(t.gst)),
+          _sumRow('Round off', '${t.roundOff >= 0 ? '+' : ''}${money(t.roundOff)}'),
+          Row(children: [
+            const Expanded(child: Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            Text(money(t.total, paise: false),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Kc.navy)),
+          ]),
+        ]),
+      ),
     );
   }
 
@@ -363,13 +628,13 @@ class _CartLine extends StatelessWidget {
           Row(children: [
             _qtyButton('−', () => s.addItem(line.item, -1)),
             SizedBox(
-                width: 36,
+                width: 40,
                 child: Text(qtyText(line.qty, false),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
             _qtyButton('+', () => s.addItem(line.item, 1)),
           ]),
         SizedBox(
-          width: 88,
+          width: 92,
           child: Text(money(line.amount),
               textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ),
@@ -386,4 +651,64 @@ class _CartLine extends StatelessWidget {
           child: Text(label, style: const TextStyle(fontSize: 20)),
         ),
       );
+}
+
+// --------------------------------------------------------------- bottom bar
+
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.mode, required this.saving, required this.onMode, required this.onSave});
+  final String mode;
+  final bool saving;
+  final ValueChanged<String> onMode;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<PosState>();
+    final t = s.bill.totals(s.companyState);
+    final modes = [
+      ('cash', 'Cash'),
+      ('upi', 'UPI'),
+      ('card', 'Card'),
+      if (s.bill.customer != null) ('credit', 'Credit'),
+    ];
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Text('Total ', style: TextStyle(fontSize: 15, color: Colors.grey.shade700)),
+          Text(money(t.total, paise: false), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Kc.navy)),
+          const Spacer(),
+          for (final m in modes)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: ChoiceChip(
+                label: Text(m.$2, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                selected: mode == m.$1,
+                onSelected: (_) => onMode(m.$1),
+                showCheckmark: false,
+                selectedColor: const Color(0xFFC9D9F2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              ),
+            ),
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 56,
+          child: FilledButton(
+            onPressed: s.bill.isEmpty || saving ? null : onSave,
+            child: Text(
+              saving
+                  ? 'Saving…'
+                  : mode == 'credit'
+                      ? 'SAVE ON CREDIT (${money(t.total, paise: false)})'
+                      : 'SAVE (${money(t.total, paise: false)})',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
 }

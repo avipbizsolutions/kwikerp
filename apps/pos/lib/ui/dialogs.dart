@@ -207,8 +207,8 @@ class _NewCustomerDialogState extends State<_NewCustomerDialog> {
 // ----------------------------------------------------------------- payment
 
 /// Payment, then either the receipt or the approval wait.
-Future<void> startPayment(BuildContext context) async {
-  final result = await showDialog<Object>(context: context, builder: (_) => const _PaymentDialog());
+Future<void> startPayment(BuildContext context, {String mode = 'cash'}) async {
+  final result = await showDialog<Object>(context: context, builder: (_) => _PaymentDialog(initialMode: mode));
   if (!context.mounted || result == null) return;
   if (result is PendingApproval) {
     final saved = await showDialog<SavedBill>(
@@ -220,7 +220,8 @@ Future<void> startPayment(BuildContext context) async {
 }
 
 class _PaymentDialog extends StatefulWidget {
-  const _PaymentDialog();
+  const _PaymentDialog({this.initialMode = 'cash'});
+  final String initialMode;
 
   @override
   State<_PaymentDialog> createState() => _PaymentDialogState();
@@ -230,6 +231,13 @@ class _PaymentDialogState extends State<_PaymentDialog> {
   String _mode = 'cash';
   bool _busy = false;
   CreditCheck? _check;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    if (_mode == 'credit') WidgetsBinding.instance.addPostFrameCallback((_) => _pickMode('credit'));
+  }
 
   Future<void> _pickMode(String m) async {
     setState(() => _mode = m);
