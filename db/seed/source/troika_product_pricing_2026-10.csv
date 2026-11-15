@@ -1,0 +1,108 @@
+ProdID,ProdName,Category,MyUnit,UnitInStock,Discount,ReOrderLevel,Consumer,Retailer,Distributor,Franchisee,SpecialRate2,Multiple
+27,Dahi 15Kg,Dahi Bulk,Pc,139587,0,10,1600,1365,1300,1365,1365,1
+11,Dahi 1kg,Dahi Bulk,Pc,169490,0,20,125,105,97,105,105,1
+68,Dahi 2kg (B),Dahi Bulk,Pc,9997537,0,50,240,200,184,200,200,1
+25,Dahi 5kg (B),Dahi Bulk,Pc,5766,0,10,575,500,470,500,500,1
+32,Dahi Smart 10kg (B),Dahi Bulk,Pc,49170,0,5,900,820,790,820,820,1
+41,Dahi Smart 5kg (B),Dahi Bulk,Pc,1583,0,50,475,415,395,415,415,1
+8,Dahi 200g Tray,Dahi Small,Tray,131336,0,30,180,156,144,156,156,1
+5,Dahi 70g,Dahi Small,Tray,37912,0,30,72,54,51,54,54,1
+6,Dahi Misti,Dahi Small,Tray,73108,0,30,72,54,51,54,54,1
+99,Dahi Pouch 200g,Dahi Small,Pc,383295,0,10,22,18,17,18,18,5
+10,Dahi Pouch 400g,Dahi Small,Pc,1191178,0,20,38,31,29.5,31,31,5
+24,FM Kesar 150ml,Flavoured Milk,Box,49073,0,50,700,588,560,588,588,1
+91,TP Baby Corn 500g,Frozen,Pc,332,0,10,140,90,85,90,90,1
+94,TP French Fries 2.5kg,Frozen,Pc,43115,0,10,450,340,325,340,340,1
+54,TP French Fries 400g,Frozen,Pc,1955,0,100,115,90,80,90,90,1
+48,TP Frozen Peas 1kg,Frozen,Kg,17329,0,100,100,70,66,70,70,5
+72,TP Frozen Peas 200g,Frozen,Pc,9894,0,100,40,25,22,25,25,5
+56,TP Frozen Peas 500g,Frozen,Pc,11874,0,100,80,50,45,50,50,2
+20,TP Frozen Peas 5kg,Frozen,Pc,88309,0,200,450,330,310,330,330,1
+92,TP Soya Chaap 500g,Frozen,Pc,39,0,10,105,60,55,60,60,1
+43,TP Sweet Corn 1kg,Frozen,pc,498,0,5,200,85,80,85,85,5
+73,TP Sweet Corn 500g,Frozen,Pc,1871,0,10000,110,70,60,70,70,1
+65,Ghee 200ml,Ghee,Pc,37994,0,100,160,146,142,146,146,1
+18,Ghee Half,Ghee,Pc,23895.5,0,100,375,350,340,350,350,1
+19,Khoa 500g,Khoa,Pc,12899,0,25,230,210,200,210,210,1
+3,Lassi Box,Lassi,Box,792.5,0,50,396,333,306,333,333,1
+79,Lassi Mango,Lassi,Pc,912014,0,10,12,10,9.25,10,10,10
+4,Lassi Pouch,Lassi,Pc,18172637,0,300,10,8.5,8,8.5,8.5,10
+47,Lassi Shahi,Lassi,Pc,161904,0,300,12,10,9.25,10,10,10
+57,Lassi Shahi Glass,Lassi,Pc,150414.5,0,50,40,37,37,37,37,1
+98,Milk Cow 1L,Milk,Liter,122029,0,10,57,54.3,52.8,54.3,54.3,10
+1,Milk Cow H,Milk,Liter,9788368,0,100,60,55.3,53.8,55.3,55.3,10
+2,Milk Gold H,Milk,Liter,857103,0,100,72,67.3,65.8,67.3,67.3,10
+26,Milk Standard H,Milk,Liter,69116,0,50,64,59.3,57.8,59.3,59.3,10
+67,Milk Toned H,Milk,Liter,593167,0,500,58,53.3,51.8,53.3,53.3,10
+55,Milk Toned Small,Milk,Pc,199309482,0,2,10,9,8.5,9,9,5
+21,Loose Paneer,Paneer,Kg,1996967.3,0,200,420,410,410,410,410,1
+66,Paneer 180gm,Paneer,Pc,918108,0,200,95,83,79,83,83,5
+23,Peda 100g,Peda,Kg,6345.1,0,100,550,470,440,470,470,1
+22,Peda 250g,Peda,Kg,499323,0,50,500,452,432,452,452,1
+74,Al Can,Procurement,Pc,18,0,10000,4200,4200,4200,4200,4200,1
+89,Farmer Register,Procurement,Pc,107,0,10,300,200,200,200,200,1
+53,Pr Coins,Procurement,Pc,893079,0,10000,1,1,1,1,1,100
+58,Pr Farmer Card,Procurement,Pc,139775,0,100,2,2,2,2,2,10
+96,M Besan Ladoo,Sweets,Pc,999408,0,10,55,46,42,46,46,1
+97,M Bundi Ladoo,Sweets,Pc,998779,0,10,60,51,47,51,51,1
+88,M Mathura Peda,Sweets,Pc,949,0,10,110,98,93,98,98,1
+87,M Milk Cake,Sweets,Pc,3511,0,10,110,98,93,98,98,1
+86,Mithai BS 10kg,Sweets,Pc,3286,0,10,2700,2500,2400,2500,2500,1
+85,Mithai BS 10pc,Sweets,Pc,1067,0,10,190,160,140,160,160,1
+82,Mithai BS 125g,Sweets,Pc,18240,0,10,45,40,37,40,40,5
+30,Mithai BS 5kg,Sweets,Pc,10701,0,500,1500,1400,1350,1400,1400,1
+29,Mithai GJ 100g,Sweets,Pc,8626,0,200,37,32,29,32,32,5
+40,Mithai GJ 10kg,Sweets,Pc,24,0,1,2600,2400,2300,2400,2400,1
+101,Mithai GJ 10pc,Sweets,Pc,1077,0,10,180,150,130,150,150,1
+84,Mithai GJ 125g,Sweets,Pc,476830,0,10,45,40,37,40,40,5
+39,Mithai GJ 5kg,Sweets,Pc,811,0,1,1400,1300,1250,1300,1300,1
+107,Mithai RJ 10pc,Sweets,Pc,9685,0,10,230,200,180,200,200,1
+28,Mithai RS 100g,Sweets,Pc,147818,0,200,37,32,29,32,32,5
+44,Mithai RS 10kg,Sweets,Pc,98243,0,5,2500,2300,2200,2300,2300,1
+100,Mithai RS 10pc,Sweets,Pc,44764,0,10,180,150,130,150,150,1
+83,Mithai RS 125g,Sweets,Pc,344177,0,10,45,40,37,40,40,5
+31,Mithai RS 5kg,Sweets,Pc,14969,0,3,1300,1200,1150,1200,1200,1
+45,Rabdi 80g,Sweets,Tr,86334,0,20,150,126,117,126,126,1
+64,TP Btr 100g,Third Party,Pc,27539,0,20,28,21,20,21,21,5
+62,TP Btr 5*100g,Third Party,Box,18039,0,20,128,100,95,100,100,1
+46,TP Cream - Delight,Third Party,Pc,113999,0,10,222,200,190,200,200,1
+71,TP Cream - Gold,Third Party,Pc,999768,0,5,276,220,210,220,220,1
+70,TP Mayo 1kg,Third Party,Pc,1684,0,5,200,100,90,100,100,1
+75,TP Wtr 1000ml,Third Party,Box,23148,0,20,240,170,170,170,170,1
+76,TP Wtr 500ml,Third Party,Box,979,0,20,240,180,180,180,180,1
+7,Bky Cake1pd,UDDBakery,Pc,11730,0,20,275,260,260,260,260,1
+60,Bky Cake1pd Cho,UDDBakery,Pc,12064.5,0,10,325,310,310,310,310,1
+12,Bky CakeHalfpd,UDDBakery,Pc,17897,0,5,190,180,180,180,180,1
+17,Bky Cookies,UDDBakery,Box,4033,0,50,100,80,80,80,80,1
+14,Bky Cream Pav,UDDBakery,Pc,16638,0,3,12,11,11,11,11,10
+59,Bky Cream Roll,UDDBakery,Pc,40661,0,10,12,11,11,11,11,5
+90,Bky Cup Cake,UDDBakery,Pc,20565,0,10,12,11,11,11,11,10
+13,Bky Pastry Cake,UDDBakery,Pc,48339,0,15,45,40,40,40,40,5
+9,Bky Pastry Glass,UDDBakery,Pc,46687,0,10,45,40,40,40,40,5
+15,Bky Pastry Small,UDDBakery,Pc,78095,0,5,15,14,14,14,14,5
+52,Bky Pnr Patties,UDDBakery,Pc,4656,0,20,20,18,18,18,18,5
+42,Ctr Balushahi,UDDCounter,Pc,5191586,0,5,16,14,14,14,14,1
+37,Ctr Balushahi Cream,UDDCounter,Kg,94971.1,0,5,425,410,410,410,410,1
+80,Ctr Chandrakala,UDDCounter,Pc,481365,0,10,18,16,16,16,16,5
+16,Ctr Chenna Roll,UDDCounter,Kg,2337.75,0,3,525,510,510,510,510,1
+104,Ctr Cut Cream,UDDCounter,Kg,14158.75,0,200,425,410,410,410,19,1
+103,Ctr GJ,UDDCounter,Pc,187413,0,200,15,13,13,13,13,5
+34,Ctr Kaju Katli,UDDCounter,Kg,513964,0,50,1100,1000,1000,1000,1000,1
+38,Ctr Kalakand,UDDCounter,Kg,719.85,0,5,525,510,510,510,510,1
+51,Ctr Kesar bhatti,UDDCounter,Kg,117251.3,0,1,425,410,410,410,410,1
+63,Ctr Kismisbhog,UDDCounter,Kg,34523.9,0,20,425,410,410,410,410,1
+81,Ctr Ladoo,UDDCounter,Kg,4310.35,0,10,260,245,245,245,245,1
+93,Ctr Matka Rabdi,UDDCounter,Pc,89479,0,10,30,28,28,28,28,1
+105,Ctr Milkcake,UDDCounter,Kg,998534.8,0,200,525,510,510,510,510,1
+69,Ctr Rajbhog,UDDCounter,Pc,202301,0,10,20,18,18,18,18,5
+106,Ctr Raskadam,UDDCounter,Kg,34576.7,0,200,525,510,20,510,510,1
+35,Ctr Rasmalai,UDDCounter,Pc,177672,0,5,40,35,35,35,35,1
+102,Ctr RS,UDDCounter,Pc,79650,0,200,15,13,13,13,13,5
+36,Ctr Special Chena,UDDCounter,Kg,41998.2,0,20,305,270,270,270,270,1
+95,Cutlet,UDDNamkeen,Pc,94659,0,10,10,9,9,9,9,5
+78,Mixture 100g,UDDNamkeen,Pc,149027.7,0,10,22,20,20,20,20,5
+49,Nimki 100g,UDDNamkeen,Pc,99910,0,10,22,20,20,20,20,5
+50,Samosa,UDDNamkeen,Pc,13853,0,1,15,13,13,13,13,20
+77,Sev 100g,UDDNamkeen,Pc,3038.4,0,10,22,20,20,20,20,5
+61,CD MRP10,Xpired,Pc,0,0,20,10,10,10,10,10,30
+33,CD MRP30,Xpired,Pc,0,0,5,30,30,30,30,30,30

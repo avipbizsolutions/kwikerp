@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KwikERP billing counter</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1E5AA8}a:hover{color:#123B70}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; position: relative; display: flex; flex-direction: column; background: #EEF1F4; font-family: Inter, system-ui, sans-serif; color: #17202A; overflow: hidden">
+
+  <header style="height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: #12355B; color: #FFFFFF">
+    <div style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.2px">KwikERP</div>
+    <div style="font-size: 14px; color: #C9D6E6">DD3 Bihta · Tablet T1 · Cashier: Ravi · Shift from 7:02 am</div>
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #FFF4E0; color: #7A4B00; font-size: 13px; font-weight: 600">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l20 20"></path><path d="M8.5 16.5a5 5 0 0 1 7 0"></path><path d="M5 12.9a10 10 0 0 1 5.2-2.8"></path><path d="M19 12.9a10 10 0 0 0-2.7-1.9"></path><circle cx="12" cy="20" r="1"></circle></svg>
+      Offline · 14 bills waiting to sync
+    </div>
+    <div style="font-size: 14px; color: #C9D6E6">Bill {{nextNo}}</div>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+
+    <section style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0; padding: 16px 16px 16px 20px; gap: 14px">
+      <div style="display: flex; gap: 10px">
+        <label for="search" style="position: absolute; left: -9999px">Search items</label>
+        <input id="search" type="text" placeholder="Search item or scan barcode" style="flex-grow: 1; height: 48px; box-sizing: border-box; border: 1px solid #C5CDD6; border-radius: 10px; padding: 0 16px; font-size: 16px; font-family: inherit; background: #FFFFFF; color: #17202A">
+      </div>
+
+      <nav aria-label="Categories" style="display: flex; gap: 8px; flex-wrap: wrap">
+        <sc-for list="{{cats}}" as="c" hint-placeholder-count="7">
+          <button type="button" onClick="{{c.pick}}" style="{{c.style}}">{{c.name}}</button>
+        </sc-for>
+      </nav>
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-content: start; overflow-y: auto">
+        <sc-for list="{{tiles}}" as="t" hint-placeholder-count="8">
+          <button type="button" onClick="{{t.pick}}" style="{{t.style}}">
+            <span style="font-size: 16px; font-weight: 600; line-height: 1.25">{{t.name}}</span>
+            <span style="font-size: 13px; color: #4A5868">{{t.sub}}</span>
+            <span style="display: flex; align-items: baseline; justify-content: space-between; width: 100%">
+              <span style="font-size: 18px; font-weight: 700; color: #12355B">{{t.priceLabel}}</span>
+              <sc-if value="{{t.inCart}}" hint-placeholder-val="{{false}}">
+                <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; background: #1E5AA8; border-radius: 999px; padding: 2px 9px">{{t.cartQty}}</span>
+              </sc-if>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <aside style="width: 420px; flex-shrink: 0; display: flex; flex-direction: column; background: #FFFFFF; border-left: 1px solid #D5DCE3">
+      <div style="padding: 14px 18px 12px; border-bottom: 1px solid #E3E8ED; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 12px; font-weight: 600; color: #4A5868; text-transform: uppercase; letter-spacing: 0.6px">Customer</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <sc-for list="{{customers}}" as="cu" hint-placeholder-count="4">
+            <button type="button" onClick="{{cu.pick}}" style="{{cu.style}}">{{cu.short}}</button>
+          </sc-for>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px">
+          <span style="font-weight: 600">{{cust.name}}</span>
+          <span style="padding: 3px 9px; border-radius: 6px; background: #E8F0FA; color: #12355B; font-weight: 600">{{cust.levelName}} rates</span>
+        </div>
+        <sc-if value="{{cust.credit}}" hint-placeholder-val="{{false}}">
+          <div style="{{creditBarStyle}}">{{creditLine}}</div>
+        </sc-if>
+      </div>
+
+      <div style="flex-grow: 1; overflow-y: auto; padding: 6px 18px">
+        <sc-if value="{{cartEmpty}}" hint-placeholder-val="{{false}}">
+          <p style="color: #4A5868; font-size: 15px; text-align: center; margin-top: 60px">Tap items to start a bill</p>
+        </sc-if>
+        <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #EEF1F4">
+            <div style="flex-grow: 1; min-width: 0">
+              <div style="font-size: 15px; font-weight: 600">{{l.name}}</div>
+              <div style="font-size: 13px; color: #4A5868">{{l.rateLabel}}</div>
+            </div>
+            <sc-if value="{{l.isKg}}" hint-placeholder-val="{{false}}">
+              <button type="button" onClick="{{l.edit}}" style="height: 44px; padding: 0 12px; border: 1px solid #C5CDD6; border-radius: 8px; background: #FFFFFF; font-size: 15px; font-weight: 600; color: #17202A">{{l.qtyLabel}}</button>
+            </sc-if>
+            <sc-if value="{{l.isPc}}" hint-placeholder-val="{{true}}">
+              <div style="display: flex; align-items: center; gap: 4px">
+                <button type="button" aria-label="Decrease" onClick="{{l.dec}}" style="width: 44px; height: 44px; border: 1px solid #C5CDD6; border-radius: 8px; background: #FFFFFF; font-size: 20px; color: #17202A">−</button>
+                <span style="min-width: 32px; text-align: center; font-size: 16px; font-weight: 600">{{l.qtyLabel}}</span>
+                <button type="button" aria-label="Increase" onClick="{{l.inc}}" style="width: 44px; height: 44px; border: 1px solid #C5CDD6; border-radius: 8px; background: #FFFFFF; font-size: 20px; color: #17202A">+</button>
+              </div>
+            </sc-if>
+            <div style="width: 84px; text-align: right; font-size: 16px; font-weight: 700">{{l.amountLabel}}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="padding: 14px 18px 18px; border-top: 1px solid #E3E8ED; display: flex; flex-direction: column; gap: 6px; background: #F8FAFB">
+        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #4A5868"><span>Items {{itemCount}} · Taxable</span><span>{{taxableLabel}}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #4A5868"><span>CGST + SGST</span><span>{{gstLabel}}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #4A5868"><span>Round off</span><span>{{roundLabel}}</span></div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px"><span style="font-size: 18px; font-weight: 600">Total</span><span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 32px; font-weight: 700; color: #12355B">{{totalLabel}}</span></div>
+        <div style="display: flex; gap: 10px; margin-top: 8px">
+          <button type="button" onClick="{{hold}}" style="width: 110px; height: 56px; border: 1px solid #C5CDD6; border-radius: 10px; background: #FFFFFF; font-size: 16px; font-weight: 600; color: #17202A">Hold</button>
+          <button type="button" onClick="{{openPay}}" style="flex-grow: 1; height: 56px; border: none; border-radius: 10px; background: #1E5AA8; color: #FFFFFF; font-size: 18px; font-weight: 700">Pay {{totalLabel}}</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <sc-if value="{{showWeigh}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(18, 32, 48, 0.45); display: flex; align-items: center; justify-content: center">
+      <div role="dialog" aria-label="Enter weight" style="width: 460px; background: #FFFFFF; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <h2 style="margin: 0; font-size: 20px">{{weighItem.name}}</h2>
+          <span style="font-size: 15px; color: #4A5868">{{weighItem.priceLabel}}</span>
+        </div>
+        <div style="display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 18px; border-radius: 12px; background: #EEF1F4">
+          <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 48px; font-weight: 700">{{weighQty}}</span>
+          <span style="font-size: 20px; color: #4A5868">kg</span>
+          <span style="flex-grow: 1"></span>
+          <span style="font-size: 22px; font-weight: 700; color: #12355B">{{weighAmount}}</span>
+        </div>
+        <button type="button" onClick="{{readScale}}" style="height: 52px; border: 2px solid #1E5AA8; border-radius: 10px; background: #E8F0FA; color: #12355B; font-size: 17px; font-weight: 700">Read weight from scale</button>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{quickWeights}}" as="q" hint-placeholder-count="4">
+            <button type="button" onClick="{{q.pick}}" style="height: 48px; border: 1px solid #C5CDD6; border-radius: 8px; background: #FFFFFF; font-size: 16px; font-weight: 600; color: #17202A">{{q.label}}</button>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 10px">
+          <button type="button" onClick="{{closeWeigh}}" style="flex-grow: 1; height: 52px; border: 1px solid #C5CDD6; border-radius: 10px; background: #FFFFFF; font-size: 16px; font-weight: 600; color: #17202A">Cancel</button>
+          <button type="button" onClick="{{addWeigh}}" style="flex-grow: 2; height: 52px; border: none; border-radius: 10px; background: #1E5AA8; color: #FFFFFF; font-size: 17px; font-weight: 700">Add to bill</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showPay}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(18, 32, 48, 0.45); display: flex; align-items: center; justify-content: center">
+      <div role="dialog" aria-label="Payment" style="width: 560px; background: #FFFFFF; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <h2 style="margin: 0; font-size: 20px">Payment · {{cust.name}}</h2>
+          <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 28px; font-weight: 700; color: #12355B">{{totalLabel}}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{modes}}" as="m" hint-placeholder-count="4">
+            <button type="button" onClick="{{m.pick}}" style="{{m.style}}">{{m.label}}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{modeIsUpi}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; gap: 16px; align-items: center; padding: 14px; border-radius: 12px; background: #EEF1F4">
+            <div style="width: 120px; height: 120px; border-radius: 8px; background: #FFFFFF; border: 1px dashed #8A97A6; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #4A5868; text-align: center">UPI QR for {{totalLabel}}</div>
+            <div style="font-size: 14px; color: #4A5868; line-height: 1.5">Customer scans this QR. The amount is fixed in the code, so no typing mistakes. Confirm once the payment message arrives.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{modeIsCredit}}" hint-placeholder-val="{{false}}">
+          <div style="{{creditCheckStyle}}">
+            <div style="font-weight: 700">{{creditCheckTitle}}</div>
+            <div>{{creditCheckDetail}}</div>
+          </div>
+        </sc-if>
+        <div style="display: flex; gap: 10px">
+          <button type="button" onClick="{{closePay}}" style="flex-grow: 1; height: 56px; border: 1px solid #C5CDD6; border-radius: 10px; background: #FFFFFF; font-size: 16px; font-weight: 600; color: #17202A">Back</button>
+          <button type="button" onClick="{{confirmPay}}" style="flex-grow: 2; height: 56px; border: none; border-radius: 10px; background: #1E5AA8; color: #FFFFFF; font-size: 18px; font-weight: 700">{{confirmLabel}}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showApproval}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(18, 32, 48, 0.45); display: flex; align-items: center; justify-content: center">
+      <div role="dialog" aria-label="Waiting for approval" style="width: 560px; background: #FFFFFF; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="padding: 4px 10px; border-radius: 999px; background: #FFF4E0; color: #7A4B00; font-size: 13px; font-weight: 700">Pending approval</span>
+          <h2 style="margin: 0; font-size: 20px">Credit limit exceeded</h2>
+        </div>
+        <div style="font-size: 15px; line-height: 1.6">{{approvalDetail}}</div>
+        <div style="padding: 14px; border-radius: 12px; background: #EEF1F4; font-size: 14px; line-height: 1.6">
+          Request sent to managers on the KwikERP app and WhatsApp. No internet? Read this code to the manager on the phone: <strong style="font-size: 18px; letter-spacing: 2px">K7-4Q2</strong>, then type the code they give you.
+        </div>
+        <div style="display: flex; gap: 8px">
+          <label for="appcode" style="position: absolute; left: -9999px">Approval code</label>
+          <input id="appcode" type="text" placeholder="Approval code from manager" style="flex-grow: 1; height: 48px; box-sizing: border-box; border: 1px solid #C5CDD6; border-radius: 10px; padding: 0 14px; font-size: 16px; font-family: inherit">
+          <button type="button" onClick="{{approve}}" style="width: 150px; height: 48px; border: none; border-radius: 10px; background: #1E5AA8; color: #FFFFFF; font-size: 15px; font-weight: 700">Apply code</button>
+        </div>
+        <div style="display: flex; gap: 10px">
+          <button type="button" onClick="{{payCashInstead}}" style="flex-grow: 1; height: 52px; border: 1px solid #C5CDD6; border-radius: 10px; background: #FFFFFF; font-size: 15px; font-weight: 600; color: #17202A">Take cash / UPI instead</button>
+          <button type="button" onClick="{{approve}}" style="flex-grow: 1; height: 52px; border: 1px solid #2E7D4F; border-radius: 10px; background: #E6F4EC; font-size: 15px; font-weight: 700; color: #1F5C39">Simulate: manager approves</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showDone}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(18, 32, 48, 0.45); display: flex; align-items: center; justify-content: center">
+      <div role="dialog" aria-label="Bill saved" style="width: 460px; background: #FFFFFF; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; box-sizing: border-box">
+        <div style="width: 56px; height: 56px; border-radius: 999px; background: #E6F4EC; display: flex; align-items: center; justify-content: center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1F5C39" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>
+        </div>
+        <h2 style="margin: 0; font-size: 22px">Bill {{nextNo}} saved</h2>
+        <p style="margin: 0; font-size: 15px; color: #4A5868; line-height: 1.5">{{doneDetail}}<br>Printing on thermal printer · WhatsApp copy queued.</p>
+        <button type="button" onClick="{{newBill}}" style="width: 100%; height: 56px; margin-top: 8px; border: none; border-radius: 10px; background: #1E5AA8; color: #FFFFFF; font-size: 18px; font-weight: 700">New bill</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+var ITEMS = [
+  { code: '2', cat: 'MILK', name: 'Gold milk 500 ml', sub: 'Full cream pouch', kg: false, gst: 0, p: { C: 36, R: 33.65, D: 32.9 } },
+  { code: '1', cat: 'MILK', name: 'Cow milk 500 ml', sub: 'Pouch', kg: false, gst: 0, p: { C: 30, R: 27.65, D: 26.9 } },
+  { code: '26', cat: 'MILK', name: 'Standard milk 500 ml', sub: 'Pouch', kg: false, gst: 0, p: { C: 32, R: 29.65, D: 28.9 } },
+  { code: '67', cat: 'MILK', name: 'Toned milk 500 ml', sub: 'Pouch', kg: false, gst: 0, p: { C: 29, R: 26.65, D: 25.9 } },
+  { code: '98', cat: 'MILK', name: 'Cow milk 1 L', sub: 'Pouch', kg: false, gst: 0, p: { C: 57, R: 54.3, D: 52.8 } },
+  { code: '55', cat: 'MILK', name: 'Toned milk small', sub: 'Pouch', kg: false, gst: 0, p: { C: 10, R: 9, D: 8.5 } },
+  { code: '8', cat: 'DAHI', name: 'Dahi 200 g cup', sub: 'Tray of 6 for trade', kg: false, gst: 5, p: { C: 30, R: 26, D: 24 } },
+  { code: '5', cat: 'DAHI', name: 'Dahi 70 g cup', sub: 'Tray of 6 for trade', kg: false, gst: 5, p: { C: 12, R: 9, D: 8.5 } },
+  { code: '6', cat: 'DAHI', name: 'Mishti dahi', sub: 'Cup', kg: false, gst: 5, p: { C: 12, R: 9, D: 8.5 } },
+  { code: '99', cat: 'DAHI', name: 'Dahi pouch 200 g', sub: 'Pouch', kg: false, gst: 5, p: { C: 22, R: 18, D: 17 } },
+  { code: '10', cat: 'DAHI', name: 'Dahi pouch 400 g', sub: 'Pouch', kg: false, gst: 5, p: { C: 38, R: 31, D: 29.5 } },
+  { code: '11', cat: 'DAHI', name: 'Dahi 1 kg bucket', sub: 'Bucket', kg: false, gst: 5, p: { C: 125, R: 105, D: 97 } },
+  { code: '4', cat: 'LASSI', name: 'Lassi pouch', sub: 'Plain', kg: false, gst: 5, p: { C: 10, R: 8.5, D: 8 } },
+  { code: '79', cat: 'LASSI', name: 'Mango lassi', sub: 'Pouch', kg: false, gst: 5, p: { C: 12, R: 10, D: 9.25 } },
+  { code: '47', cat: 'LASSI', name: 'Shahi lassi', sub: 'Pouch', kg: false, gst: 5, p: { C: 12, R: 10, D: 9.25 } },
+  { code: '3', cat: 'LASSI', name: 'Lassi glass 200 ml', sub: 'Box of 18 for trade', kg: false, gst: 5, p: { C: 22, R: 18.5, D: 17 } },
+  { code: '57', cat: 'LASSI', name: 'Shahi lassi glass', sub: 'Glass', kg: false, gst: 5, p: { C: 40, R: 37, D: 37 } },
+  { code: '34', cat: 'SWEETS', name: 'Kaju katli', sub: 'Loose · by weight', kg: true, gst: 5, p: { C: 1100, R: 1000, D: 1000 } },
+  { code: '105', cat: 'SWEETS', name: 'Milk cake', sub: 'Loose · by weight', kg: true, gst: 5, p: { C: 525, R: 510, D: 510 } },
+  { code: '38', cat: 'SWEETS', name: 'Kalakand', sub: 'Loose · by weight', kg: true, gst: 5, p: { C: 525, R: 510, D: 510 } },
+  { code: '106', cat: 'SWEETS', name: 'Raskadam', sub: 'Loose · by weight', kg: true, gst: 5, p: { C: 525, R: 510, D: 510 } },
+  { code: '102', cat: 'SWEETS', name: 'Rasgulla', sub: 'Per piece', kg: false, gst: 5, p: { C: 15, R: 13, D: 13 } },
+  { code: '103', cat: 'SWEETS', name: 'Gulab jamun', sub: 'Per piece', kg: false, gst: 5, p: { C: 15, R: 13, D: 13 } },
+  { code: '69', cat: 'SWEETS', name: 'Rajbhog', sub: 'Per piece', kg: false, gst: 5, p: { C: 20, R: 18, D: 18 } },
+  { code: '35', cat: 'SWEETS', name: 'Rasmalai', sub: 'Per piece', kg: false, gst: 5, p: { C: 40, R: 35, D: 35 } },
+  { code: '42', cat: 'SWEETS', name: 'Balushahi', sub: 'Per piece', kg: false, gst: 5, p: { C: 16, R: 14, D: 14 } },
+  { code: '80', cat: 'SWEETS', name: 'Chandrakala', sub: 'Per piece', kg: false, gst: 5, p: { C: 18, R: 16, D: 16 } },
+  { code: '93', cat: 'SWEETS', name: 'Matka rabdi', sub: 'Per piece', kg: false, gst: 5, p: { C: 30, R: 28, D: 28 } },
+  { code: '50', cat: 'NAMKEEN', name: 'Samosa', sub: 'Fresh today', kg: false, gst: 5, p: { C: 15, R: 13, D: 13 } },
+  { code: '95', cat: 'NAMKEEN', name: 'Cutlet', sub: 'Fresh today', kg: false, gst: 5, p: { C: 10, R: 9, D: 9 } },
+  { code: '49', cat: 'NAMKEEN', name: 'Nimki 100 g', sub: 'Pack', kg: false, gst: 5, p: { C: 22, R: 20, D: 20 } },
+  { code: '77', cat: 'NAMKEEN', name: 'Sev 100 g', sub: 'Pack', kg: false, gst: 5, p: { C: 22, R: 20, D: 20 } },
+  { code: '78', cat: 'NAMKEEN', name: 'Mixture 100 g', sub: 'Pack', kg: false, gst: 5, p: { C: 22, R: 20, D: 20 } },
+  { code: '21', cat: 'PANEER', name: 'Loose paneer', sub: 'By weight', kg: true, gst: 0, p: { C: 420, R: 410, D: 410 } },
+  { code: '66', cat: 'PANEER', name: 'Paneer 180 g', sub: 'Pack', kg: false, gst: 0, p: { C: 95, R: 83, D: 79 } },
+  { code: '19', cat: 'PANEER', name: 'Khoa 500 g', sub: 'Pack', kg: false, gst: 5, p: { C: 230, R: 210, D: 200 } },
+  { code: '65', cat: 'PANEER', name: 'Ghee 200 ml', sub: 'Plastic container', kg: false, gst: 5, p: { C: 160, R: 146, D: 142 } },
+  { code: '18', cat: 'PANEER', name: 'Ghee 500 ml', sub: 'Plastic container', kg: false, gst: 5, p: { C: 375, R: 350, D: 340 } },
+  { code: '13', cat: 'BAKERY', name: 'Pastry cake', sub: 'Piece', kg: false, gst: 5, p: { C: 45, R: 40, D: 40 } },
+  { code: '90', cat: 'BAKERY', name: 'Cup cake', sub: 'Piece', kg: false, gst: 5, p: { C: 12, R: 11, D: 11 } },
+  { code: '7', cat: 'BAKERY', name: 'Cake 1 pound', sub: 'Piece', kg: false, gst: 5, p: { C: 275, R: 260, D: 260 } },
+  { code: '52', cat: 'BAKERY', name: 'Paneer patties', sub: 'Piece', kg: false, gst: 5, p: { C: 20, R: 18, D: 18 } }
+];
+var CATS = [
+  { id: 'SWEETS', name: 'Counter sweets' }, { id: 'MILK', name: 'Milk' }, { id: 'DAHI', name: 'Dahi' },
+  { id: 'LASSI', name: 'Lassi' }, { id: 'NAMKEEN', name: 'Namkeen & snacks' },
+  { id: 'PANEER', name: 'Paneer, khoa, ghee' }, { id: 'BAKERY', name: 'Bakery' }
+];
+var TINT = { SWEETS: '#FCE9DC', MILK: '#E3EEF9', DAHI: '#E6F2E1', LASSI: '#FFF4D6', NAMKEEN: '#F9E0D3', PANEER: '#F0EEE8', BAKERY: '#ECE7F3' };
+var CUSTOMERS = [
+  { id: 'walkin', short: 'Walk-in', name: 'Walk-in customer', level: 'C', levelName: 'Consumer', credit: false },
+  { id: 'sharma', short: 'Sharma Kirana', name: 'Sharma Kirana Store', level: 'R', levelName: 'Retailer', credit: true, outstanding: 9700, limit: 10000, oldestDays: 5, maxDays: 15, limitSource: 'own limit' },
+  { id: 'raj', short: 'Raj Agency', name: 'Raj Dairy Agency', level: 'D', levelName: 'Distributor', credit: true, outstanding: 0, limit: 0, oldestDays: 0, maxDays: 0, limitSource: 'advance-payment distributor' },
+  { id: 'ramesh', short: 'Ramesh (Sahyogi)', name: 'Ramesh Kumar · Sahyogi, Dumari', level: 'R', levelName: 'Retailer', credit: true, outstanding: 1250, limit: 3000, oldestDays: 6, maxDays: 10, limitSource: 'Sahyogi category limit' }
+];
+var LEVEL_NAMES = { C: 'Consumer', R: 'Retailer', D: 'Distributor' };
+
+function money(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function money0(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+function find(code) { return ITEMS.filter(function (i) { return i.code === code; })[0]; }
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      cat: 'SWEETS',
+      cart: [{ code: '34', qty: 0.25 }, { code: '102', qty: 6 }, { code: '2', qty: 2 }, { code: '8', qty: 1 }],
+      cust: 'walkin', weigh: null, weighQty: 0.25, screen: 'bill', mode: 'cash', billNo: 124, lastDone: ''
+    };
+  }
+
+  setQty(code, qty) {
+    var cart = this.state.cart.slice();
+    var idx = -1;
+    for (var k = 0; k < cart.length; k++) { if (cart[k].code === code) idx = k; }
+    if (qty <= 0) { if (idx >= 0) cart.splice(idx, 1); }
+    else if (idx >= 0) { cart[idx] = { code: code, qty: qty }; }
+    else { cart.push({ code: code, qty: qty }); }
+    this.setState({ cart: cart });
+  }
+  qtyOf(code) {
+    var l = this.state.cart.filter(function (c) { return c.code === code; })[0];
+    return l ? l.qty : 0;
+  }
+
+  renderVals() {
+    var self = this, s = this.state;
+    var cust = CUSTOMERS.filter(function (c) { return c.id === s.cust; })[0];
+    var level = cust.level;
+
+    var cats = CATS.map(function (c) {
+      var on = c.id === s.cat;
+      return {
+        name: c.name,
+        pick: function () { self.setState({ cat: c.id }); },
+        style: 'height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px; font-weight: 600; ' +
+          (on ? 'border: 2px solid #12355B; background: #12355B; color: #FFFFFF;' : 'border: 1px solid #C5CDD6; background: #FFFFFF; color: #17202A;')
+      };
+    });
+
+    var tiles = ITEMS.filter(function (i) { return i.cat === s.cat; }).map(function (i) {
+      var q = self.qtyOf(i.code);
+      return {
+        name: i.name, sub: i.sub,
+        priceLabel: money(i.p[level]).replace('.00', '') + (i.kg ? '/kg' : ''),
+        inCart: q > 0,
+        cartQty: i.kg ? (q.toFixed(3) + ' kg') : String(q),
+        style: 'height: 118px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 4px; padding: 12px 14px; text-align: left; border-radius: 12px; color: #17202A; background: ' + TINT[i.cat] + '; ' +
+          (q > 0 ? 'border: 2px solid #1E5AA8;' : 'border: 1px solid rgba(23, 32, 42, 0.08);'),
+        pick: function () {
+          if (i.kg) self.setState({ weigh: i.code, weighQty: q > 0 ? q : 0.25 });
+          else self.setQty(i.code, q + 1);
+        }
+      };
+    });
+
+    var total = 0, taxable = 0, count = 0;
+    var lines = s.cart.map(function (c) {
+      var i = find(c.code);
+      var rate = i.p[level];
+      var amount = Math.round(rate * c.qty * 100) / 100;
+      total += amount;
+      taxable += amount / (1 + i.gst / 100);
+      count += 1;
+      return {
+        name: i.name,
+        rateLabel: money(rate) + (i.kg ? ' per kg' : ' each') + (i.gst ? ' · GST ' + i.gst + '%' : ' · GST nil'),
+        isKg: i.kg, isPc: !i.kg,
+        qtyLabel: i.kg ? (c.qty.toFixed(3) + ' kg') : String(c.qty),
+        amountLabel: money(amount),
+        inc: function () { self.setQty(c.code, c.qty + 1); },
+        dec: function () { self.setQty(c.code, c.qty - 1); },
+        edit: function () { self.setState({ weigh: c.code, weighQty: c.qty }); }
+      };
+    });
+    var rounded = Math.round(total);
+    var gst = total - taxable;
+
+    var customers = CUSTOMERS.map(function (c) {
+      var on = c.id === s.cust;
+      return {
+        short: c.short,
+        pick: function () { self.setState({ cust: c.id, mode: 'cash' }); },
+        style: 'height: 44px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-weight: 600; ' +
+          (on ? 'border: 2px solid #1E5AA8; background: #E8F0FA; color: #12355B;' : 'border: 1px solid #C5CDD6; background: #FFFFFF; color: #17202A;')
+      };
+    });
+
+    var after = (cust.outstanding || 0) + rounded;
+    var overAmount = cust.credit && after > cust.limit;
+    var overDays = cust.credit && cust.maxDays > 0 && cust.oldestDays > cust.maxDays;
+    var creditLine = cust.credit
+      ? ('Outstanding ' + money0(cust.outstanding) + ' · limit ' + money0(cust.limit) + ' (' + cust.limitSource + ')')
+      : '';
+    var creditBarStyle = 'padding: 8px 10px; border-radius: 8px; font-size: 13px; ' +
+      (cust.outstanding >= cust.limit * 0.8 ? 'background: #FFF4E0; color: #7A4B00;' : 'background: #EEF1F4; color: #33414F;');
+
+    var modeList = [{ id: 'cash', label: 'Cash' }, { id: 'upi', label: 'UPI QR' }, { id: 'card', label: 'Card' }];
+    if (cust.credit) modeList.push({ id: 'credit', label: 'Credit' });
+    var modes = modeList.map(function (m) {
+      var on = m.id === s.mode;
+      return {
+        label: m.label,
+        pick: function () { self.setState({ mode: m.id }); },
+        style: 'height: 56px; border-radius: 10px; font-size: 16px; font-weight: 700; ' +
+          (on ? 'border: 2px solid #1E5AA8; background: #E8F0FA; color: #12355B;' : 'border: 1px solid #C5CDD6; background: #FFFFFF; color: #17202A;')
+      };
+    });
+
+    var needsApproval = s.mode === 'credit' && (overAmount || overDays);
+    var reasons = [];
+    if (overAmount) reasons.push('outstanding would be ' + money0(after) + ' against a limit of ' + money0(cust.limit));
+    if (overDays) reasons.push('oldest unpaid bill is ' + cust.oldestDays + ' days old (limit ' + cust.maxDays + ')');
+
+    var weighItem = s.weigh ? find(s.weigh) : ITEMS[17];
+    var wq = Number(s.weighQty);
+
+    return {
+      nextNo: 'DD3-T1-2627-000' + s.billNo,
+      cats: cats, tiles: tiles, lines: lines, customers: customers,
+      cust: { name: cust.name, levelName: LEVEL_NAMES[level], credit: cust.credit },
+      creditLine: creditLine, creditBarStyle: creditBarStyle,
+      cartEmpty: lines.length === 0,
+      itemCount: count,
+      taxableLabel: money(taxable), gstLabel: money(gst),
+      roundLabel: (rounded - total >= 0 ? '+' : '−') + money(Math.abs(rounded - total)).replace('₹', '₹'),
+      totalLabel: money0(rounded),
+      hold: function () { self.setState({ cart: [] }); },
+      openPay: function () { if (lines.length) self.setState({ screen: 'pay' }); },
+
+      showWeigh: !!s.weigh,
+      weighItem: { name: weighItem.name, priceLabel: money(weighItem.p[level]).replace('.00', '') + ' per kg' },
+      weighQty: wq.toFixed(3),
+      weighAmount: money(Math.round(weighItem.p[level] * wq * 100) / 100),
+      readScale: function () { self.setState({ weighQty: 0.43 }); },
+      quickWeights: [0.1, 0.25, 0.5, 1].map(function (w) {
+        return { label: w < 1 ? (w * 1000) + ' g' : '1 kg', pick: function () { self.setState({ weighQty: w }); } };
+      }),
+      closeWeigh: function () { self.setState({ weigh: null }); },
+      addWeigh: function () { self.setQty(s.weigh, Number(s.weighQty)); self.setState({ weigh: null }); },
+
+      showPay: s.screen === 'pay',
+      modes: modes,
+      modeIsUpi: s.mode === 'upi',
+      modeIsCredit: s.mode === 'credit',
+      creditCheckTitle: needsApproval ? 'Over credit limit: needs manager approval' : 'Within credit limit',
+      creditCheckDetail: needsApproval
+        ? ('This bill can be saved but not printed until a manager approves: ' + reasons.join('; ') + '.')
+        : ('Outstanding after this bill: ' + money0(after) + ' of ' + money0(cust.limit) + '.'),
+      creditCheckStyle: 'padding: 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 4px; ' +
+        (needsApproval ? 'background: #FFF4E0; color: #7A4B00; border: 1px solid #F0C67A;' : 'background: #E6F4EC; color: #1F5C39; border: 1px solid #A8D5B9;'),
+      confirmLabel: needsApproval ? 'Send for approval' : (s.mode === 'credit' ? 'Save on credit & print' : 'Paid · save & print'),
+      closePay: function () { self.setState({ screen: 'bill' }); },
+      confirmPay: function () {
+        if (needsApproval) self.setState({ screen: 'approval' });
+        else self.setState({ screen: 'done', lastDone: (s.mode === 'credit' ? 'On credit to ' + cust.name : 'Paid by ' + s.mode.toUpperCase()) + ' · ' + money0(rounded) });
+      },
+
+      showApproval: s.screen === 'approval',
+      approvalDetail: cust.name + ' · bill ' + money0(rounded) + '. Reason: ' + reasons.join('; ') + '.',
+      approve: function () { self.setState({ screen: 'done', lastDone: 'On credit to ' + cust.name + ' · approved by manager · ' + money0(rounded) }); },
+      payCashInstead: function () { self.setState({ screen: 'pay', mode: 'cash' }); },
+
+      showDone: s.screen === 'done',
+      doneDetail: s.lastDone,
+      newBill: function () { self.setState({ screen: 'bill', cart: [], mode: 'cash', billNo: s.billNo + 1, cust: 'walkin' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
