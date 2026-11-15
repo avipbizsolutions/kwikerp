@@ -20,6 +20,8 @@ let deviceId = '';
 let cashierToken = '';
 let ownerToken = '';
 let approvalKey = '';
+// A fresh tablet per run, so bill numbers never collide with earlier runs
+const deviceCode = `T${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 const admin = new Client({ connectionString: process.env.ADMIN_DATABASE_URL });
 
 async function call(method: string, url: string, token: string, body?: unknown) {
@@ -42,7 +44,7 @@ before(async () => {
   cli('user:add', '--tenant', 'TROIKA', '--name', 'Test Cashier', '--phone', '9111111111', '--pin', '1234',
     '--role', 'CASHIER', '--location', 'DD3');
   cli('user:add', '--tenant', 'TROIKA', '--name', 'Test Owner', '--phone', '9222222222', '--pin', '5678', '--role', 'OWNER');
-  const out = cli('device:add', '--tenant', 'TROIKA', '--location', 'DD3', '--code', 'T9');
+  const out = cli('device:add', '--tenant', 'TROIKA', '--location', 'DD3', '--code', deviceCode);
   deviceId = out.trim().split(' ').pop()!;
   app = await createApp();
   await app.listen(0);
@@ -151,7 +153,7 @@ test('a credit bill over the limit is pushed, approved by the manager, then fina
 
   // Tablet finalises the bill with its number
   const fin = await call('POST', '/sync/push', cashierToken, {
-    sales_invoice: [{ ...invoice, status: 'final', doc_no: 'DD3-T9-2627-000001', finalised_at: new Date().toISOString() }],
+    sales_invoice: [{ ...invoice, status: 'final', doc_no: `DD3-${deviceCode}-2627-000001`, finalised_at: new Date().toISOString() }],
   });
   assert.equal(fin.status, 201, JSON.stringify(fin.body));
   const p3 = (await call('GET', `/sync/pull?since=${p2.cursor}`, cashierToken)).body;
@@ -167,7 +169,7 @@ test('a credit bill over the limit is pushed, approved by the manager, then fina
 
 test('offline approval code matches what the tablet computes', async () => {
   const r = await call('POST', '/approvals/offline-code', ownerToken,
-    { locationCode: 'dd3', deviceCode: 't9', requestCode: 'k74q', amount: 421 });
+    { locationCode: 'dd3', deviceCode: deviceCode.toLowerCase(), requestCode: 'k74q', amount: 421 });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.equal(r.body.approvalCode, approvalCode(approvalKey, 'K74Q', 421));
   assert.notEqual(r.body.approvalCode, approvalCode(approvalKey, 'K74Q', 422));
