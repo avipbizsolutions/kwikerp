@@ -10,6 +10,8 @@
 #   - systemd service "kwikerp-api" on 127.0.0.1:$PORT
 #   - a CloudPanel reverse-proxy site for $DOMAIN with a Let's Encrypt certificate
 #   - the tablet app at https://$DOMAIN/api/download/pos.apk
+#     re-signed with this server's own key (/etc/kwikerp/pos-signing.jks) so tablets can update
+#     without uninstalling. BACK UP that key: without it, tablets must uninstall to update.
 set -euo pipefail
 
 DOMAIN=${DOMAIN:-api.kwikerp.cloud}
@@ -122,8 +124,26 @@ for i in $(seq 1 20); do curl -fsS http://127.0.0.1:$PORT/api/health >/dev/null 
 curl -fsS http://127.0.0.1:$PORT/api/health && echo
 
 step "Tablet app file"
+# GitHub builds the app with a throw-away key. Every copy served from here is
+# re-signed with one permanent key, so a newer app installs over an older one.
+dpkg -s apksigner >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -yq apksigner
+KS=/etc/kwikerp/pos-signing.jks
+KS_PASS_FILE=/etc/kwikerp/pos-signing.pass
+if [ ! -f $KS ]; then
+  umask 077
+  openssl rand -hex 24 > $KS_PASS_FILE
+  keytool -genkeypair -keystore $KS -storetype PKCS12 -alias kwikerp-pos -keyalg RSA -keysize 4096 -validity 10000 \
+    -storepass:file $KS_PASS_FILE -dname "CN=KwikERP POS, O=AVIP Business Solutions LLP, C=IN" >/dev/null 2>&1
+  umask 022
+  echo "Created app signing key $KS. Copy $KS and $KS_PASS_FILE somewhere safe."
+fi
 if as_app git -C $BASE/src fetch -q origin apk 2>/dev/null; then
-  as_app sh -c "git -C $BASE/src show FETCH_HEAD:kwikerp-pos.apk > $BASE/downloads/kwikerp-pos.apk"
+  TMP=$(mktemp -d)
+  as_app git -C $BASE/src show FETCH_HEAD:kwikerp-pos.apk > $TMP/in.apk
+  apksigner sign --ks $KS --ks-key-alias kwikerp-pos --ks-pass file:$KS_PASS_FILE --out $TMP/out.apk $TMP/in.apk
+  apksigner verify $TMP/out.apk
+  install -o kwikerp -g kwikerp -m 644 $TMP/out.apk $BASE/downloads/kwikerp-pos.apk
+  rm -rf $TMP
   ls -lh $BASE/downloads/kwikerp-pos.apk
 else
   echo "No app build published yet (branch 'apk')"
