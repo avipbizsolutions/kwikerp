@@ -65,10 +65,7 @@ jobs:
           # The repo holds only our code; Flutter's Android scaffolding is generated here.
           flutter create --platforms=android --org com.kwikerp --project-name kwikerp_pos .
           rm -f test/widget_test.dart   # template test for the counter demo app
-          # App name and internet permission
-          sed -i 's/android:label="kwikerp_pos"/android:label="KwikERP POS"/' android/app/src/main/AndroidManifest.xml
-          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || \
-            sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+          python3 tool/patch_android.py   # app name, internet and Bluetooth permissions
       - name: Get packages
         working-directory: apps/pos
         run: flutter pub get

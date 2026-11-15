@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../core/billing.dart';
 import '../core/catalog.dart';
+import '../core/escpos.dart';
 import '../core/pos_state.dart';
+import '../core/printer.dart';
 import 'theme.dart';
 
 // ------------------------------------------------------------------ weight
@@ -431,65 +433,238 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
 
 // ----------------------------------------------------------------- receipt
 
-/// Receipt text as it will print on a 3-inch (48 column) thermal printer.
-String receiptText(PosState s, SavedBill b) {
-  const w = 48;
+/// Receipt text. [width] is 48 columns for 80 mm paper and 32 for 58 mm.
+/// With [forPrint] the text is plain ASCII with the ^C/^B/^W markers EscPos
+/// understands; otherwise it is for the screen.
+String receiptText(PosState s, SavedBill b, {int width = 48, bool forPrint = false, bool duplicate = false}) {
+  final w = width;
+  String t(String v) => forPrint ? EscPos.ascii(v) : v;
+  String m(double v, {bool paise = true}) =>
+      forPrint ? EscPos.ascii(money(v, paise: paise)).replaceAll('Rs', '') : money(v, paise: paise);
+  String fit(String v) => v.length <= w ? v : v.substring(0, w);
   String line([String c = '-']) => c * w;
   String lr(String l, String r) {
     final space = w - l.length - r.length;
     return space > 0 ? '$l${' ' * space}$r' : '${l.substring(0, (w - r.length - 1).clamp(0, l.length))} $r';
   }
+  final c = forPrint ? '^C' : '';
+  final bold = forPrint ? '^B' : '';
+  final big = forPrint ? '^W' : '';
 
   final co = s.catalog!.companies[s.device!.companyId];
-  final out = StringBuffer()
-    ..writeln((co?['legal_name'] ?? '').toString())
-    ..writeln(s.device!.locationName)
-    ..writeln(co?['gstin'] == null ? '' : 'GSTIN ${co!['gstin']}')
+  final out = StringBuffer();
+  if (duplicate) out.writeln('$c${bold}DUPLICATE');
+  out
+    ..writeln('$c$big${fit(t((co?['legal_name'] ?? '').toString()))}')
+    ..writeln('$c${fit(t(s.device!.locationName))}');
+  if (co?['gstin'] != null) out.writeln('${c}GSTIN ${co!['gstin']}');
+  out
     ..writeln(line())
-    ..writeln(lr('Bill ${b.docNo}', (b.invoice['doc_date'] ?? '').toString()))
-    ..writeln(b.customerName)
+    ..writeln('$bold${lr('Bill ${b.docNo}', (b.invoice['doc_date'] ?? '').toString())}')
+    ..writeln(fit(t(b.customerName)))
     ..writeln(line());
   for (final l in b.lines) {
-    out.writeln(l.item.name);
-    out.writeln(lr('  ${qtyText(l.qty, l.item.soldByWeight)} x ${money(l.rate)}', money(l.amount)));
+    out.writeln(fit(t(l.item.name)));
+    out.writeln(lr('  ${t(qtyText(l.qty, l.item.soldByWeight))} x ${m(l.rate)}', m(l.amount)));
   }
   out
     ..writeln(line())
-    ..writeln(lr('Taxable', money(b.totals.taxable)))
-    ..writeln(lr('GST', money(b.totals.gst)))
-    ..writeln(lr('Round off', money(b.totals.roundOff)))
-    ..writeln(lr('TOTAL', money(b.totals.total, paise: false)))
-    ..writeln(b.payLabel)
+    ..writeln(lr('Taxable', m(b.totals.taxable)))
+    ..writeln(lr('GST', m(b.totals.gst)))
+    ..writeln(lr('Round off', m(b.totals.roundOff)))
+    ..writeln('$big${lr(forPrint ? 'TOTAL Rs' : 'TOTAL', m(b.totals.total, paise: false))}')
+    ..writeln(t(b.payLabel))
     ..writeln(line())
-    ..writeln((co?['invoice_footer'] ?? 'Thank you!').toString());
+    ..writeln('$c${fit(t((co?['invoice_footer'] ?? 'Thank you!').toString()))}');
   return out.toString();
 }
 
-Future<void> showReceipt(BuildContext context, SavedBill b) {
+Future<void> showReceipt(BuildContext context, SavedBill b) async {
   final s = context.read<PosState>();
-  return showDialog<void>(
+  final p = context.read<PrinterService>();
+  String printable({bool duplicate = false}) => receiptText(s, b, width: p.columns, forPrint: true, duplicate: duplicate);
+  // Remembered for "Reprint last bill" even when no printer is set up yet.
+  p.lastReceipt = receiptText(s, b, width: p.columns, forPrint: true, duplicate: true);
+  String? status;
+  if (p.configured && p.autoPrint) {
+    status = await p.print(printable(), remember: false);
+    status ??= 'Printed';
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
     context: context,
-    builder: (_) => AlertDialog(
-      title: Text('Bill ${b.docNo} saved'),
-      content: SizedBox(
-        width: 460,
-        height: 460,
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            color: const Color(0xFFFAFAF7),
-            child: Text(receiptText(s, b), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setState) => AlertDialog(
+        title: Text('Bill ${b.docNo} saved'),
+        content: SizedBox(
+          width: 460,
+          height: 460,
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              color: const Color(0xFFFAFAF7),
+              child: Text(receiptText(s, b), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
           ),
         ),
+        actions: [
+          if (status != null)
+            Text('$status  ',
+                style: TextStyle(color: status == 'Printed' ? Kc.greenInk : Kc.red, fontWeight: FontWeight.w600)),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(130, 52)),
+            icon: const Icon(Icons.print),
+            label: Text(status == null ? 'Print' : 'Print again'),
+            onPressed: () async {
+              if (!p.configured) {
+                await showPrinterSetup(dialogContext);
+                if (!p.configured) return;
+              }
+              final again = status == 'Printed';
+              setState(() => status = 'Printing…');
+              final r = await p.print(printable(duplicate: again), remember: false);
+              setState(() => status = r ?? 'Printed');
+            },
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(160, 52)),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('New bill'),
+          ),
+        ],
       ),
-      actions: [
-        const Text('Thermal printing is connected in the next update.  ', style: TextStyle(color: Kc.muted)),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(160, 52)),
-          onPressed: () => Navigator.pop(context),
-          child: const Text('New bill'),
-        ),
-      ],
     ),
   );
+}
+
+// ----------------------------------------------------------------- printer
+
+/// Choose the paired Bluetooth printer and paper width.
+Future<void> showPrinterSetup(BuildContext context) =>
+    showDialog<void>(context: context, builder: (_) => const _PrinterDialog());
+
+class _PrinterDialog extends StatefulWidget {
+  const _PrinterDialog();
+
+  @override
+  State<_PrinterDialog> createState() => _PrinterDialogState();
+}
+
+class _PrinterDialogState extends State<_PrinterDialog> {
+  List<PairedPrinter>? _list;
+  String? _error;
+  String? _mac;
+  String? _name;
+  late int _cols;
+  late bool _auto;
+  String? _test;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = context.read<PrinterService>();
+    _mac = p.mac;
+    _name = p.name;
+    _cols = p.columns;
+    _auto = p.autoPrint;
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _error = null;
+      _list = null;
+    });
+    try {
+      final l = await context.read<PrinterService>().paired();
+      if (mounted) setState(() => _list = l);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _save() => context.read<PrinterService>().save(mac: _mac, name: _name, columns: _cols, autoPrint: _auto);
+
+  Future<void> _testPrint() async {
+    await _save();
+    if (!mounted) return;
+    final p = context.read<PrinterService>();
+    setState(() => _test = 'Printing…');
+    final ruler = List.generate(_cols, (i) => '${(i + 1) % 10}').join();
+    final r = await p.print(
+        '^C^WKwikERP test print\n^C${_name ?? ''}\n$ruler\nThe line of digits above should fit on one line.\n',
+        remember: false);
+    if (mounted) setState(() => _test = r ?? 'Test page sent');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = _list;
+    return AlertDialog(
+      title: const Text('Receipt printer'),
+      content: SizedBox(
+        width: 480,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Pair the printer first in Android Settings > Bluetooth (PIN is usually 0000 or 1234), '
+              'then pick it here.', style: TextStyle(color: Kc.muted)),
+          const SizedBox(height: 12),
+          if (_error != null) ...[
+            Text(_error!, style: const TextStyle(color: Kc.red)),
+            const SizedBox(height: 8),
+          ],
+          if (list == null && _error == null) const Center(child: CircularProgressIndicator()),
+          if (list != null && list.isEmpty) const Text('No paired Bluetooth devices found.'),
+          if (list != null)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView(shrinkWrap: true, children: [
+                for (final d in list)
+                  ListTile(
+                    leading: Icon(d.mac == _mac ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: d.mac == _mac ? Kc.navy : Kc.muted),
+                    title: Text(d.name.isEmpty ? '(no name)' : d.name),
+                    subtitle: Text(d.mac),
+                    onTap: () => setState(() {
+                      _mac = d.mac;
+                      _name = d.name;
+                    }),
+                  ),
+              ]),
+            ),
+          const SizedBox(height: 8),
+          Row(children: [
+            const Text('Paper  '),
+            SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 32, label: Text('58 mm (2 inch)')),
+                ButtonSegment(value: 48, label: Text('80 mm (3 inch)')),
+              ],
+              selected: {_cols},
+              onSelectionChanged: (v) => setState(() => _cols = v.first),
+            ),
+          ]),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Print every bill automatically'),
+            value: _auto,
+            onChanged: (v) => setState(() => _auto = v),
+          ),
+          if (_test != null) Text(_test!, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: _load, child: const Text('Refresh list')),
+        OutlinedButton(onPressed: _mac == null ? null : _testPrint, child: const Text('Test print')),
+        FilledButton(
+          onPressed: _mac == null
+              ? null
+              : () async {
+                  await _save();
+                  if (context.mounted) Navigator.pop(context);
+                },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
 }

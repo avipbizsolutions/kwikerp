@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'core/local_db.dart';
 import 'core/pos_state.dart';
+import 'core/printer.dart';
 import 'ui/billing_screen.dart';
 import 'ui/login_screen.dart';
 import 'ui/setup_screen.dart';
@@ -16,7 +17,15 @@ Future<void> main() async {
   final db = await LocalDb.open();
   final state = PosState(db);
   await state.init();
-  runApp(ChangeNotifierProvider.value(value: state, child: const KwikPosApp()));
+  final printer = PrinterService(db);
+  await printer.load();
+  runApp(MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: state),
+      ChangeNotifierProvider.value(value: printer),
+    ],
+    child: const KwikPosApp(),
+  ));
 }
 
 class KwikPosApp extends StatelessWidget {

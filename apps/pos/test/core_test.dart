@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kwikerp_pos/core/billing.dart';
+import 'package:kwikerp_pos/core/escpos.dart';
 import 'package:kwikerp_pos/core/offline_code.dart';
 
 void main() {
@@ -33,5 +34,18 @@ void main() {
     expect(money(1234567.5), '₹12,34,567.50');
     expect(money(421, paise: false), '₹421');
     expect(money(-60), '−₹60.00');
+  });
+
+  test('ESC/POS encoding', () {
+    expect(EscPos.ascii('₹12,34,567.50 · −₹60 पनीर'), 'Rs12,34,567.50 - -Rs60 ????');
+    final bytes = EscPos.encode('^C^WShop\nPlain', cut: false);
+    expect(bytes.sublist(0, 2), [0x1B, 0x40]);
+    // centred, bold, double height before "Shop"
+    final shop = bytes.indexOf('S'.codeUnitAt(0));
+    expect(bytes.sublist(shop - 9, shop), [0x1B, 0x61, 1, 0x1B, 0x45, 1, 0x1D, 0x21, 1]);
+    // plain line resets formatting
+    final plain = bytes.indexOf('P'.codeUnitAt(0));
+    expect(bytes.sublist(plain - 9, plain), [0x1B, 0x61, 0, 0x1B, 0x45, 0, 0x1D, 0x21, 0]);
+    expect(bytes.every((b) => b >= 0 && b < 256), isTrue);
   });
 }

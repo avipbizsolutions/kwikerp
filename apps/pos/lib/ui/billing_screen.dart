@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/billing.dart';
 import '../core/catalog.dart';
 import '../core/pos_state.dart';
+import '../core/printer.dart';
 import 'dialogs.dart';
 import 'shift_screens.dart';
 import 'theme.dart';
@@ -113,14 +114,23 @@ class _TopBar extends StatelessWidget {
         const SizedBox(width: 8),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.white),
-          onSelected: (v) {
-            if (v == 'close') {
+          onSelected: (v) async {
+            if (v == 'printer') {
+              await showPrinterSetup(context);
+            } else if (v == 'reprint') {
+              final p = context.read<PrinterService>();
+              final last = p.lastReceipt;
+              final msg = last == null ? 'No bill printed since the app was opened.' : await p.print(last, remember: false);
+              if (msg != null && context.mounted) showError(context, msg);
+            } else if (v == 'close') {
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CloseShiftScreen()));
             } else if (v == 'logout') {
               s.logout();
             }
           },
           itemBuilder: (_) => const [
+            PopupMenuItem(value: 'printer', child: Text('Printer')),
+            PopupMenuItem(value: 'reprint', child: Text('Reprint last bill')),
             PopupMenuItem(value: 'close', child: Text('Close shift')),
             PopupMenuItem(value: 'logout', child: Text('Log out')),
           ],
