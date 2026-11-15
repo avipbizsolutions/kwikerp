@@ -61,7 +61,7 @@ jobs:
         working-directory: apps/pos
         run: |
           # The repo holds only our code; Flutter's Android scaffolding is generated here.
-          flutter create --platforms=android --org in.kwikerp --project-name kwikerp_pos .
+          flutter create --platforms=android --org com.kwikerp --project-name kwikerp_pos .
           rm -f test/widget_test.dart   # template test for the counter demo app
           # App name and internet permission
           sed -i 's/android:label="kwikerp_pos"/android:label="KwikERP POS"/' android/app/src/main/AndroidManifest.xml
