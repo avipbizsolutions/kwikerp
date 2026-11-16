@@ -48,6 +48,11 @@
   th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 110px; }
   th { font-size: 12px; color: var(--muted); font-weight: 600; }
   .scroll { overflow-x: auto; }
+  main.wide { max-width: none; }
+  #rtGrid table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  #rtGrid th:first-child, #rtGrid td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 1px 0 0 var(--line); min-width: 190px; max-width: 260px; }
+  #rtGrid thead th:first-child { z-index: 3; background: #f6f8fa; }
+  #rtGrid td.grp { position: sticky; left: 0; }
   .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px 12px; margin-top: 8px; font-size: 14px; color: var(--muted); }
   .split b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .code { font-size: 44px; font-weight: 800; letter-spacing: 6px; color: var(--navy); text-align: center; padding: 10px; font-variant-numeric: tabular-nums; }
@@ -273,13 +278,16 @@
         <div class="actions">
           <button class="ghost" type="button" id="rtFill">Fill a column…</button>
           <button class="ghost" type="button" id="rtAddLevel">+ Rate list</button>
+          <button class="ghost" type="button" id="rtXlsDown">Download rates (Excel)</button>
+          <label class="ghost" style="display:inline-flex;align-items:center;justify-content:center;flex:1 1 140px;margin:0;font-size:15px;font-weight:600;color:var(--ink);border:1px solid #b8c2cc;border-radius:8px;padding:11px 14px;cursor:pointer;background:#fff">
+            Upload rates (Excel)<input type="file" id="rtXlsUp" accept=".xlsx,.xls,.csv" style="display:none"></label>
         </div>
         <p class="muted" style="margin-bottom:0">Rates are per piece / pouch / kg. Trays and boxes are set to piece rate × pack size automatically.
           One chart for all outlets. Today's rates keep running until the date above.</p>
         <div id="rtTool"></div>
       </div>
       <div id="rtMsg"></div>
-      <div class="card scroll" style="padding:0;max-height:70vh;overflow:auto" id="rtGridBox"><div id="rtGrid"></div></div>
+      <div class="card" style="padding:0;max-height:72vh;overflow:auto" id="rtGridBox"><div id="rtGrid"></div></div>
       <div id="rtBar" class="hidden" style="position:sticky;bottom:0;background:var(--amberbg);border:1px solid #f0d59c;border-radius:10px;padding:12px 14px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <b id="rtCount" class="grow" style="color:var(--amber)"></b>
         <button class="ghost" type="button" id="rtDiscard">Discard</button>
@@ -360,6 +368,7 @@
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
     ['approvals', 'sales', 'customers', 'types', 'rates', 'tally', 'users', 'receipt', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    document.querySelector('main').classList.toggle('wide', b.dataset.tab === 'rates');
     if (b.dataset.tab === 'sales') loadSales();
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'types') loadTypes();
@@ -925,11 +934,11 @@
   function drawRates() {
     if (!rt) return;
     const items = visibleItems();
-    let html = `<table style="min-width:${300 + rt.levels.length * 120}px"><thead style="position:sticky;top:0;background:#f6f8fa;z-index:1"><tr><th>Item</th><th>Per</th>
+    let html = `<table style="min-width:${260 + rt.levels.length * 115}px"><thead style="position:sticky;top:0;background:#f6f8fa;z-index:2"><tr><th>Item</th><th>Per</th>
       ${rt.levels.map((l) => `<th style="text-align:right;min-width:110px">${esc(l.name)}<br><span class="muted" style="font-weight:400">${esc(l.used_by || 'not used yet')}</span></th>`).join('')}</tr></thead><tbody>`;
     let lastCat = null;
     for (const i of items) {
-      if (i.category !== lastCat) { lastCat = i.category; html += `<tr><td colspan="${2 + rt.levels.length}" style="background:var(--ground);font-weight:700;font-size:12px;color:var(--muted)">${esc((i.category || 'No group').toUpperCase())}</td></tr>`; }
+      if (i.category !== lastCat) { lastCat = i.category; html += `<tr><td style="background:var(--ground);font-weight:700;font-size:12px;color:var(--muted)">${esc((i.category || 'No group').toUpperCase())}</td><td colspan="${1 + rt.levels.length}" style="background:var(--ground)"></td></tr>`; }
       html += `<tr><td><b>${esc(i.name)}</b>${i.pack_size ? ' <span class="muted">' + esc(i.pack_size) + '</span>' : ''}${i.packs ? '<br><span class="muted">' + esc(i.packs.toLowerCase()) + '</span>' : ''}</td>
         <td class="muted">${esc(i.unit.toLowerCase())}</td>`;
       for (const l of rt.levels) {
@@ -1018,6 +1027,102 @@
       try { await api('POST', '/price-levels', { name: f.name.value, copyFromId: f.copy.value || undefined }); $('rtTool').innerHTML = ''; meta = null; loadRates(); }
       catch (err) { msg($('rtMsg'), err.message); }
     };
+  };
+
+  // -------------------------------------------------- rates in Excel
+  let xlsxReady = null;
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve();
+    xlsxReady = xlsxReady || new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      sc.onload = ok; sc.onerror = () => { xlsxReady = null; fail(new Error('Could not load the Excel tool. Check the internet connection.')); };
+      document.head.appendChild(sc);
+    });
+    return xlsxReady;
+  }
+  $('rtXlsDown').onclick = async () => {
+    try {
+      await loadXlsx();
+      const head = ['Item code', 'Item', 'Group', 'Per', ...rt.levels.map((l) => l.name)];
+      const rows = rt.items.map((i) => [String(i.code), i.name + (i.pack_size ? ' ' + i.pack_size : ''), i.category || '', i.unit.toLowerCase(),
+        ...rt.levels.map((l) => { const p = rt.map.get(rtKey(i.id, l.id))?.price; return p == null ? '' : Number(p); })]);
+      const ws = XLSX.utils.aoa_to_sheet([head, ...rows]);
+      ws['!cols'] = [{ wch: 10 }, { wch: 32 }, { wch: 18 }, { wch: 7 }, ...rt.levels.map(() => ({ wch: 14 }))];
+      ws['!freeze'] = { xSplit: 2, ySplit: 1 };
+      const help = XLSX.utils.aoa_to_sheet([
+        ['KwikERP rate chart'], [`Rates as on ${rt.today}`], [''],
+        ['How to use'],
+        ['1. Change rates on the Rates sheet. Rates are per piece / pouch / kg (column Per).'],
+        ['2. Leave a cell empty for no change. Do not change Item code or the column headings.'],
+        ['3. Item, Group and Per are for reading only.'],
+        ['4. On the head-office page, Rates tab: Upload rates (Excel). You will see every change before saving.'],
+        ['5. Trays and boxes are set to piece rate x pack size automatically.'],
+      ]);
+      help['!cols'] = [{ wch: 100 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Rates');
+      XLSX.utils.book_append_sheet(wb, help, 'How to use');
+      XLSX.writeFile(wb, `kwikerp-rates-${rt.today}.xlsx`);
+    } catch (err) { msg($('rtMsg'), err.message); }
+  };
+  $('rtXlsUp').onchange = async (e) => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      await loadXlsx();
+      const wb = XLSX.read(await file.arrayBuffer());
+      const ws = wb.Sheets['Rates'] || wb.Sheets[wb.SheetNames[0]];
+      const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+      const norm = (v) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const hi = grid.findIndex((r) => r.some((c) => norm(c) === 'item code'));
+      if (hi < 0) throw new Error('This file has no "Item code" column. Use a file from Download rates (Excel).');
+      const head = grid[hi].map(norm);
+      const codeCol = head.indexOf('item code');
+      const cols = []; const skippedCols = [];
+      head.forEach((h, ix) => {
+        if (!h || ['item code', 'item', 'group', 'per'].includes(h)) return;
+        const l = rt.levels.find((x) => norm(x.name) === h || norm(x.code) === h);
+        if (l) cols.push({ ix, l }); else skippedCols.push(grid[hi][ix]);
+      });
+      const byCode = new Map(rt.items.map((i) => [String(i.code).trim(), i]));
+      const changes = []; const unknown = []; const bad = [];
+      for (const r of grid.slice(hi + 1)) {
+        const code = String(r[codeCol] ?? '').trim();
+        if (!code) continue;
+        const item = byCode.get(code);
+        if (!item) { unknown.push(code); continue; }
+        for (const { ix, l } of cols) {
+          const raw = r[ix];
+          if (raw === '' || raw == null) continue;
+          const v = Number(String(raw).replace(/[,₹\s]/g, ''));
+          if (!(v >= 0)) { bad.push(`${item.name} / ${l.name}: "${raw}"`); continue; }
+          const k = rtKey(item.id, l.id); const cur = rt.map.get(k)?.price;
+          if (cur != null && Math.abs(cur - v) < 0.005) continue;
+          changes.push({ k, item, l, cur, v: Math.round(v * 100) / 100 });
+        }
+      }
+      const rowsHtml = changes.map((c) => `<tr style="${bigJump(c.v, c.cur) ? 'background:var(--redbg)' : ''}"><td>${esc(c.item.name)}</td><td>${esc(c.l.name)}</td>
+        <td>${c.cur == null ? '—' : fmt(c.cur)}</td><td><b>${fmt(c.v)}</b></td></tr>`).join('');
+      $('rtTool').innerHTML = `<div class="inline">
+        <b>From ${esc(file.name)}: ${changes.length} rate${changes.length === 1 ? '' : 's'} changed</b>
+        ${changes.filter((c) => bigJump(c.v, c.cur)).length ? `<div class="msg err">${changes.filter((c) => bigJump(c.v, c.cur)).length} change(s) of more than 30% are shown in red. Check them.</div>` : ''}
+        ${unknown.length ? `<div class="muted">Skipped unknown item codes: ${unknown.slice(0, 20).map(esc).join(', ')}${unknown.length > 20 ? '…' : ''}</div>` : ''}
+        ${skippedCols.length ? `<div class="muted">Skipped columns (not a rate list): ${skippedCols.map(esc).join(', ')}</div>` : ''}
+        ${bad.length ? `<div class="msg err">Not a number, skipped: ${bad.slice(0, 10).map(esc).join('; ')}${bad.length > 10 ? '…' : ''}</div>` : ''}
+        ${changes.length ? `<div class="scroll" style="max-height:300px;overflow:auto;margin-top:8px"><table><tr><th>Item</th><th>Rate list</th><th>Now</th><th>New</th></tr>${rowsHtml}</table></div>` : ''}
+        <div class="actions">
+          ${changes.length ? '<button class="primary" type="button" id="rtXlsApply">Put these into the chart</button>' : ''}
+          <button class="ghost" type="button" data-x="close">Close</button></div>
+        <p class="muted">Nothing is saved yet: after this, choose the date and press Save at the bottom.</p></div>`;
+      $('rtTool').querySelector('[data-x=close]').onclick = () => { $('rtTool').innerHTML = ''; };
+      const ap = $('rtXlsApply');
+      if (ap) ap.onclick = () => {
+        changes.forEach((c) => rtEdits.set(c.k, c.v.toFixed(2)));
+        $('rtTool').innerHTML = ''; $('rtQ').value = ''; $('rtCat').value = ''; drawRates();
+        msg($('rtMsg'), `${changes.length} rates from the file are in the chart (amber). Check, choose the date, then Save.`, true);
+      };
+    } catch (err) { msg($('rtMsg'), err.message || String(err)); }
   };
   // --------------------------------------------------------- offline code
   $('codeForm').onsubmit = async (e) => {
