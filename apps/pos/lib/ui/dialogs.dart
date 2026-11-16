@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../core/billing.dart';
 import '../core/catalog.dart';
-import '../core/escpos.dart';
 import '../core/pos_state.dart';
 import '../core/printer.dart';
 import '../core/receipt.dart';
