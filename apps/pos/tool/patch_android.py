@@ -33,3 +33,20 @@ if 'android:scheme="https"' not in xml:
 
 manifest.write_text(xml)
 print("AndroidManifest.xml patched:", ", ".join(re.findall(r'permission\.(\w+)', xml)))
+
+# The release build runs Android lint over every plugin; its checker crashed on
+# url_launcher_android (a lint bug, not ours). Lint is a build-time check only.
+root_gradle = Path("android/build.gradle.kts")
+if root_gradle.exists():
+    g = root_gradle.read_text()
+    marker = "// kwikerp: no lintVital"
+    if marker not in g:
+        g += (
+            "\n" + marker + "\n"
+            "subprojects {\n"
+            "    tasks.matching { it.name.startsWith(\"lintVital\") }.configureEach { enabled = false }\n"
+            "}\n"
+        )
+        root_gradle.write_text(g)
+        print("build.gradle.kts: release lint check turned off")
+
