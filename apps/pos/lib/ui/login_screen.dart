@@ -43,6 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text('KwikERP', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Kc.navy)),
                 const SizedBox(height: 4),
                 const Text('Log in to start billing', style: TextStyle(color: Kc.muted)),
+                if (context.watch<PosState>().logoutReason != null) ...[
+                  const SizedBox(height: 10),
+                  Text('Logged out: ${context.watch<PosState>().logoutReason}',
+                      style: const TextStyle(color: Kc.red, fontWeight: FontWeight.w600)),
+                ],
                 const SizedBox(height: 20),
                 TextField(
                   controller: _phone,

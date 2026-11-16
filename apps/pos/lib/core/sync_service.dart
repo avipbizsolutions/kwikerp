@@ -18,6 +18,8 @@ class SyncService extends ChangeNotifier {
 
   /// Called after a pull that changed masters, so the catalog can reload.
   Future<void> Function()? onMastersChanged;
+  /// Called when the server refuses this login (expired, or switched off by head office).
+  Future<void> Function(String message)? onLoggedOut;
 
   Timer? _timer;
   bool _running = false;
@@ -40,7 +42,16 @@ class SyncService extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _disposed = true;
     super.dispose();
+  }
+
+  // A sync already running when the session ends (e.g. logged out by the
+  // server) must not notify a disposed listener.
+  bool _disposed = false;
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   Future<void> refreshPending() async {
@@ -61,6 +72,10 @@ class SyncService extends ChangeNotifier {
     } catch (e) {
       online = false;
       lastError = e.toString();
+      if (e is ApiException && e.status == 401 && onLoggedOut != null) {
+        // Bills not yet sent stay on the tablet and go up after the next login.
+        await onLoggedOut!(e.message);
+      }
     } finally {
       _running = false;
       await refreshPending();

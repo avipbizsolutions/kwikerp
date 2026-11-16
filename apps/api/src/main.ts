@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AdminController } from './admin';
 import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
 import { config } from './config';
@@ -53,7 +54,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AdminController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

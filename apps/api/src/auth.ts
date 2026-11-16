@@ -22,11 +22,31 @@ export const NEEDS = 'needs-permission';
 /** Mark a route as needing one permission (OWNER's '*' passes everything). */
 export const Needs = (perm: string) => SetMetadata(NEEDS, perm);
 
+// Recently checked users/tablets, so a deactivated one is locked out within a minute.
+const activeCache = new Map<string, { ok: boolean; at: number }>();
+export function forgetActive(id: string) {
+  for (const k of activeCache.keys()) if (k.includes(id)) activeCache.delete(k);
+}
+
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector, private readonly db: Db) {}
 
-  canActivate(ctx: ExecutionContext): boolean {
+  private async stillActive(s: Session): Promise<boolean> {
+    const key = `${s.userId}|${s.deviceId ?? ''}`;
+    const hit = activeCache.get(key);
+    if (hit && Date.now() - hit.at < 60_000) return hit.ok;
+    const ok = await this.db.tx(s.tenantId, async (c) => {
+      const u = (await c.query('SELECT 1 FROM app_user WHERE id = $1 AND is_active AND deleted_at IS NULL', [s.userId])).rowCount;
+      if (!u) return false;
+      if (!s.deviceId) return true;
+      return !!(await c.query('SELECT 1 FROM device WHERE id = $1 AND is_active AND deleted_at IS NULL', [s.deviceId])).rowCount;
+    });
+    activeCache.set(key, { ok, at: Date.now() });
+    return ok;
+  }
+
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
     const header: string = req.headers['authorization'] ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -41,6 +61,7 @@ export class AuthGuard implements CanActivate {
     if (perm && !session.permissions.includes('*') && !session.permissions.includes(perm)) {
       throw new ForbiddenException(`Needs permission ${perm}`);
     }
+    if (!(await this.stillActive(session))) throw new UnauthorizedException('This login or tablet has been switched off');
     req.session = session;
     return true;
   }

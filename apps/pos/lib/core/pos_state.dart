@@ -115,6 +115,7 @@ class PosState extends ChangeNotifier {
     final api = Api(serverUrl!);
     final res = await api.login(tenantCode: tenantCode!, phone: phone.trim(), pin: pin.trim(), deviceId: deviceId!);
     token = res['token'] as String;
+    logoutReason = null;
     user = Map<String, dynamic>.from(res['user'] as Map);
     device = DeviceInfo(Map<String, dynamic>.from(res['device'] as Map));
     // Setup may have used the short tablet code (DD3-T1); keep the full id from now on.
@@ -145,6 +146,10 @@ class PosState extends ChangeNotifier {
     sync?.dispose();
     final s = SyncService(db, Api(serverUrl!, token: token));
     s.onMastersChanged = reloadCatalog;
+    s.onLoggedOut = (m) async {
+      logoutReason = m;
+      await logout();
+    };
     sync = s;
     await reloadCatalog();
     bill = Bill(levelId: device!.defaultLevelId);
@@ -155,6 +160,9 @@ class PosState extends ChangeNotifier {
   // ------------------------------------------------------- mandatory update
 
   bool _billReady = false;
+
+  /// Why the tablet was logged out by the server, shown on the login screen.
+  String? logoutReason;
   Timer? _updateTimer;
 
   /// Build number the server says is current, when it is newer than this app.

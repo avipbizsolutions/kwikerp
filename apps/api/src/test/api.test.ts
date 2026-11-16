@@ -380,3 +380,43 @@ test('Tally export from the server', async () => {
   assert.match(await led.text(), /<PARENT>Sundry Debtors<\/PARENT>/);
 });
 
+test('head office manages logins and tablets; switched-off ones stop working', async () => {
+  const me = (await call('GET', '/auth/me', ownerToken)).body;
+  const list = (await call('GET', '/admin/users', ownerToken)).body;
+  assert.ok(list.roles.some((r: any) => r.code === 'OUTLET'));
+  const code = `X${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+  const dev = await call('POST', '/admin/devices', ownerToken, { location: 'dd3', code });
+  assert.equal(dev.status, 201, JSON.stringify(dev.body));
+  assert.equal(dev.body.setupCode, `DD3-${code}`);
+
+  const phone = `8${Math.floor(Math.random() * 1e9).toString().padStart(9, '0')}`;
+  assert.equal((await call('POST', '/admin/users', ownerToken,
+    { name: 'Weak', phone, pin: '1111', roles: [{ role: 'CASHIER', location: 'DD3' }] })).status, 400, 'weak PIN refused');
+  assert.equal((await call('POST', '/admin/users', ownerToken,
+    { name: 'No outlet', phone, pin: '2580', roles: [{ role: 'CASHIER' }] })).status, 400, 'cashier needs an outlet');
+  const add = await call('POST', '/admin/users', ownerToken,
+    { name: 'DD3 In-charge', phone, pin: '2580', roles: [{ role: 'OUTLET', location: 'DD3' }] });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  const login = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone, pin: '2580', deviceId: `DD3-${code}` });
+  assert.equal(login.status, 201, JSON.stringify(login.body));
+  assert.ok(login.body.user.permissions.includes('bill.cancel'));
+  const tok = login.body.token;
+  assert.equal((await call('GET', '/auth/me', tok)).status, 200);
+
+  // Switch the tablet off: its session stops at once
+  await call('POST', `/admin/devices/${dev.body.id}`, ownerToken, { isActive: false });
+  assert.equal((await call('GET', '/sync/pull?since=0', tok)).status, 401);
+  await call('POST', `/admin/devices/${dev.body.id}`, ownerToken, { isActive: true });
+  assert.equal((await call('GET', '/auth/me', tok)).status, 200);
+
+  // Switch the person off
+  await call('POST', '/admin/users', ownerToken,
+    { id: add.body.id, name: 'DD3 In-charge', phone, isActive: false, roles: [{ role: 'OUTLET', location: 'DD3' }] });
+  assert.equal((await call('GET', '/auth/me', tok)).status, 401);
+
+  // The owner cannot lock themselves out; cashiers cannot manage users
+  assert.equal((await call('POST', '/admin/users', ownerToken,
+    { id: me.userId, name: 'Test Owner', phone: '9222222222', isActive: false, roles: [{ role: 'OWNER' }] })).status, 400);
+  assert.equal((await call('GET', '/admin/users', cashierToken)).status, 403);
+});
+
