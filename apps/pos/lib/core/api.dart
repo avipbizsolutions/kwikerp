@@ -44,8 +44,9 @@ class Api {
     return Map<String, dynamic>.from(await _decode(r) as Map);
   }
 
-  Future<Map<String, dynamic>> pull(int since) async {
-    final r = await http.get(_u('/sync/pull?since=$since'), headers: _headers).timeout(const Duration(seconds: 60));
+  Future<Map<String, dynamic>> pull(int since, {String? settingsVersion}) async {
+    final sv = settingsVersion == null ? '' : '&sv=${Uri.encodeQueryComponent(settingsVersion)}';
+    final r = await http.get(_u('/sync/pull?since=$since$sv'), headers: _headers).timeout(const Duration(seconds: 60));
     return Map<String, dynamic>.from(await _decode(r) as Map);
   }
 

@@ -91,6 +91,7 @@
     <button data-tab="limits">Limits</button>
     <button data-tab="tally">Tally</button>
     <button data-tab="users">Users</button>
+    <button data-tab="receipt">Receipt</button>
     <button data-tab="code">Code</button>
   </nav>
   <main>
@@ -190,6 +191,54 @@
       </div>
     </div>
 
+    <div id="tab-receipt" class="hidden">
+      <div id="rcMsg"></div>
+      <div class="card">
+        <b style="font-size:16px">Receipt layout</b>
+        <p class="muted">Applies to every tablet at its next sync. In the lines you can use {company} {outlet} {outlet_address}
+          {address} {gstin} {phone} {email} {fssai}; a line whose fields are empty is left out.</p>
+        <form id="rcForm">
+          <label>Logo (black and white prints best)</label>
+          <div class="row" style="align-items:center">
+            <input type="file" id="rcLogoFile" accept="image/*" style="flex:1 1 200px">
+            <button class="ghost" type="button" id="rcLogoClear">Remove logo</button>
+          </div>
+          <label>Logo width on paper</label>
+          <select id="rcLogoW"><option value="192">Small</option><option value="256" selected>Medium</option><option value="384">Full width (58 mm)</option></select>
+          <canvas id="rcLogo" style="display:block;margin:10px auto;max-width:100%;image-rendering:pixelated;background:#fff"></canvas>
+          <label>Title (big, centred)</label><input name="title">
+          <label>Lines under the title</label><textarea name="header" rows="5" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
+          <label>Footer</label><textarea name="footer" rows="2" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
+          <div id="rcOpts"></div>
+          <div class="actions"><button class="primary" type="submit">Save receipt layout</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="row"><b class="grow">Preview</b>
+          <select id="rcOutlet" style="width:auto"></select>
+          <select id="rcCols" style="width:auto"><option value="48">80 mm</option><option value="32">58 mm</option></select></div>
+        <pre id="rcPrev" style="background:#fafaf7;border:1px solid var(--line);padding:12px;overflow-x:auto;font-size:12px;line-height:1.35"></pre>
+      </div>
+      <div class="card">
+        <b style="font-size:16px">Business details on receipts</b>
+        <form id="bzForm">
+          <div class="row">
+            <div class="grow" style="flex-basis:180px"><label>GSTIN</label><input name="gstin" style="text-transform:uppercase"></div>
+            <div class="grow" style="flex-basis:150px"><label>Phone</label><input name="phone" inputmode="tel"></div>
+          </div>
+          <div class="row">
+            <div class="grow" style="flex-basis:200px"><label>Email</label><input name="email" type="email"></div>
+            <div class="grow" style="flex-basis:150px"><label>FSSAI licence</label><input name="fssai"></div>
+          </div>
+          <label>Company address</label><input name="address">
+          <div id="bzOutlets"></div>
+          <div class="actions"><button class="primary" type="submit">Save business details</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+    </div>
+
     <div id="tab-code" class="hidden">
       <div class="card">
         <div class="muted">For an outlet with no internet. The cashier reads out what the tablet's approval screen shows.</div>
@@ -262,12 +311,13 @@
   // ----------------------------------------------------------------- tabs
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'customers', 'limits', 'tally', 'users', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    ['approvals', 'sales', 'customers', 'limits', 'tally', 'users', 'receipt', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
     if (b.dataset.tab === 'sales') loadSales();
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'limits') loadLimits();
     if (b.dataset.tab === 'tally') openTally();
     if (b.dataset.tab === 'users') loadUsers();
+    if (b.dataset.tab === 'receipt') loadReceipt();
     if (b.dataset.tab === 'approvals') loadApprovals();
   });
 
@@ -599,6 +649,137 @@
     try { await api('POST', `/admin/devices/${b.dataset.dev}`, { isActive: b.dataset.on === '1' }); loadUsers(); }
     catch (err) { msg($('dMsg'), err.message); }
   };
+
+  // -------------------------------------------------------------- receipt
+  const RC_OPTS = [['showTime', 'Time of the bill'], ['showCustomer', 'Customer name ("Bill to")'],
+    ['itemTable', 'Item / Qty / Rate / Total columns'], ['showCounts', 'Total items and quantity'],
+    ['splitGst', 'CGST and SGST separately'], ['showSavings', '"You saved" against MRP']];
+  let rc = null, rcLogo = null;
+  async function loadReceipt() {
+    try {
+      rc = await api('GET', '/settings/receipt');
+      const f = $('rcForm');
+      f.title.value = rc.receipt.title; f.header.value = rc.receipt.header; f.footer.value = rc.receipt.footer;
+      $('rcOpts').innerHTML = RC_OPTS.map(([k, l]) => `<label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px">
+        <input type="checkbox" name="${k}" style="width:auto"${rc.receipt[k] ? ' checked' : ''}> ${esc(l)}</label>`).join('');
+      rcLogo = rc.receipt.logo;
+      drawLogo();
+      $('rcOutlet').innerHTML = rc.outlets.map((o) => `<option value="${esc(o.code)}">${esc(o.code)}</option>`).join('');
+      const b = $('bzForm'); const co = rc.company || {};
+      b.gstin.value = co.gstin || ''; b.phone.value = co.phone || ''; b.email.value = co.email || '';
+      b.fssai.value = co.fssai_no || ''; b.address.value = co.address || '';
+      $('bzOutlets').innerHTML = rc.outlets.map((o) => `<div class="inline" data-o="${esc(o.code)}">
+        <b>${esc(o.code)}</b>
+        <div class="row"><div class="grow" style="flex-basis:160px"><label>Name on receipt</label><input data-k="name" value="${esc(o.name)}"></div>
+          <div class="grow" style="flex-basis:130px"><label>Phone</label><input data-k="phone" inputmode="tel" value="${esc(o.phone || '')}"></div></div>
+        <label>Address</label><input data-k="address" value="${esc(o.address || '')}">
+        <label>FSSAI (if different)</label><input data-k="fssai" value="${esc(o.fssai_no || '')}"></div>`).join('');
+      preview();
+    } catch (err) { msg($('rcMsg'), err.message); }
+  }
+  ['rcOutlet', 'rcCols'].forEach((id) => $(id).onchange = preview);
+  $('rcForm').oninput = preview;
+
+  // Logo: scale to the chosen width, turn into black/white dots like the printer will.
+  function drawLogo() {
+    const cv = $('rcLogo');
+    if (!rcLogo) { cv.width = 0; cv.height = 0; return; }
+    const bytes = Uint8Array.from(atob(rcLogo.data), (ch) => ch.charCodeAt(0));
+    cv.width = rcLogo.width; cv.height = rcLogo.height;
+    const ctx = cv.getContext('2d'); const img = ctx.createImageData(cv.width, cv.height);
+    const per = cv.width / 8;
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+      const on = bytes[y * per + (x >> 3)] & (0x80 >> (x & 7)); const i = (y * cv.width + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = on ? 0 : 255; img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  async function makeLogo(file) {
+    const url = URL.createObjectURL(file);
+    const im = new Image(); im.src = url; await im.decode(); URL.revokeObjectURL(url);
+    const w = Number($('rcLogoW').value);
+    const h = Math.min(300, Math.round(im.height * w / im.width));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(im, 0, 0, w, h);
+    const px = ctx.getImageData(0, 0, w, h).data; const per = w / 8; const out = new Uint8Array(per * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      if (px[i + 3] > 128 && lum < 140) out[y * per + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+    let bin = ''; out.forEach((b) => { bin += String.fromCharCode(b); });
+    return { width: w, height: h, data: btoa(bin) };
+  }
+  let logoFile = null;
+  $('rcLogoFile').onchange = async (e) => { logoFile = e.target.files[0]; if (logoFile) { rcLogo = await makeLogo(logoFile); drawLogo(); } };
+  $('rcLogoW').onchange = async () => { if (logoFile) { rcLogo = await makeLogo(logoFile); drawLogo(); } };
+  $('rcLogoClear').onclick = () => { rcLogo = null; logoFile = null; $('rcLogoFile').value = ''; drawLogo(); };
+
+  $('rcForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const body = { title: f.title.value, header: f.header.value, footer: f.footer.value, logo: rcLogo };
+    RC_OPTS.forEach(([k]) => { body[k] = f[k].checked; });
+    try { await api('POST', '/settings/receipt', body); msg(f.querySelector('[data-m]'), 'Saved. Tablets use it after their next sync (about a minute).', true); }
+    catch (err) { msg(f.querySelector('[data-m]'), err.message); }
+  };
+  $('bzForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const outlets = [...$('bzOutlets').querySelectorAll('[data-o]')].map((d) => {
+      const o = { code: d.dataset.o }; d.querySelectorAll('[data-k]').forEach((i) => { o[i.dataset.k] = i.value; }); return o;
+    });
+    try {
+      await api('POST', '/settings/business', { company: { gstin: f.gstin.value, phone: f.phone.value, email: f.email.value,
+        fssai: f.fssai.value, address: f.address.value }, outlets });
+      msg(f.querySelector('[data-m]'), 'Saved.', true); loadReceipt();
+    } catch (err) { msg(f.querySelector('[data-m]'), err.message); }
+  };
+
+  // Rough preview with a sample bill; the tablet prints the real one.
+  function preview() {
+    if (!rc) return;
+    const f = $('rcForm'); const w = Number($('rcCols').value);
+    const co = rc.company || {}; const o = rc.outlets.find((x) => x.code === $('rcOutlet').value) || {};
+    const b = $('bzForm'); const od = $('bzOutlets').querySelector(`[data-o="${o.code}"]`);
+    const ov = (k, d) => (od ? od.querySelector(`[data-k="${k}"]`).value : d) || '';
+    const fields = { company: co.legal_name, outlet: ov('name', o.name), outlet_address: ov('address', o.address), address: b.address.value,
+      gstin: b.gstin.value.toUpperCase(), phone: ov('phone', o.phone) || b.phone.value, email: b.email.value, fssai: ov('fssai', o.fssai_no) || b.fssai.value };
+    const expand = (t) => t.split('\n').flatMap((raw) => {
+      const names = [...raw.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+      if (names.length && names.every((k) => !fields[k])) return [];
+      const v = raw.replace(/\{(\w+)\}/g, (_, k) => fields[k] || '').trim(); return v ? [v] : [];
+    });
+    const centre = (t) => ' '.repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t;
+    const lr = (l, r) => l + ' '.repeat(Math.max(1, w - l.length - r.length)) + r;
+    const on = (k) => f[k] && f[k].checked;
+    const L = []; const line = '-'.repeat(w);
+    if (rcLogo) L.push(centre('[ logo ]'));
+    expand(f.title.value).forEach((t) => L.push(centre(t.toUpperCase())));
+    expand(f.header.value).forEach((t) => L.push(centre(t)));
+    L.push(line, w >= 40 ? lr(`Bill ${o.code || 'DD3'}-T1-2627-000123`, '16/11/26' + (on('showTime') ? ' 02:13 PM' : ''))
+      : `Bill ${o.code || 'DD3'}-T1-2627-000123`);
+    if (on('showCustomer')) L.push('Bill to: Walk-in customer');
+    L.push(line);
+    const items = [['Milk Gold H 500 ml', 2, 36], ['Frozen Peas 1kg', 1, 74], ['Gulabjamun Loose (kg)', 0.5, 300]];
+    const nameW = w - 24;
+    if (on('itemTable') && w >= 40) L.push('Item'.padEnd(nameW) + 'Qty'.padStart(5) + 'Rate'.padStart(9) + 'Total'.padStart(10));
+    let total = 0;
+    items.forEach(([n, q, r]) => {
+      const a = q * r; total += a;
+      if (on('itemTable') && w >= 40) L.push(n.slice(0, nameW - 1).padEnd(nameW) + String(q).padStart(5) + r.toFixed(2).padStart(9) + a.toFixed(2).padStart(10));
+      else { L.push(n); L.push(lr(`  ${q} x ${r.toFixed(2)}`, a.toFixed(2))); }
+    });
+    L.push(line);
+    if (on('showCounts')) L.push(lr('Items 3', 'Qty 4'));
+    L.push(lr('Taxable', (total / 1.05).toFixed(2)));
+    if (on('splitGst')) { L.push(lr('CGST', (total / 1.05 * 0.025).toFixed(2))); L.push(lr('SGST', (total / 1.05 * 0.025).toFixed(2))); }
+    else L.push(lr('GST', (total / 1.05 * 0.05).toFixed(2)));
+    L.push(lr('TOTAL Rs', total.toFixed(0)), 'Paid by CASH', lr('Received', total.toFixed(2)));
+    if (on('showSavings')) L.push(centre('You saved Rs 12'));
+    L.push(line);
+    expand(f.footer.value).forEach((t) => L.push(centre(t)));
+    $('rcPrev').textContent = L.join('\n');
+  }
   // --------------------------------------------------------- offline code
   $('codeForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -769,7 +950,7 @@
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
     const can = (p) => (me.permissions || []).includes('*') || (me.permissions || []).includes(p);
-    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', limits: 'credit.limit.set', tally: 'accounts.export', users: 'users.manage', code: 'credit.approve' };
+    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', limits: 'credit.limit.set', tally: 'accounts.export', users: 'users.manage', receipt: 'settings.manage', code: 'credit.approve' };
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !can(need[b.dataset.tab])));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');

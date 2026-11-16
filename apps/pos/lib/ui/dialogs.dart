@@ -6,6 +6,7 @@ import '../core/catalog.dart';
 import '../core/escpos.dart';
 import '../core/pos_state.dart';
 import '../core/printer.dart';
+import '../core/receipt.dart';
 import 'theme.dart';
 
 // ------------------------------------------------------------------ weight
@@ -441,51 +442,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
 
 // ----------------------------------------------------------------- receipt
 
-/// Receipt text. [width] is 48 columns for 80 mm paper and 32 for 58 mm.
-/// With [forPrint] the text is plain ASCII with the ^C/^B/^W markers EscPos
-/// understands; otherwise it is for the screen.
-String receiptText(PosState s, SavedBill b, {int width = 48, bool forPrint = false, bool duplicate = false}) {
-  final w = width;
-  String t(String v) => forPrint ? EscPos.ascii(v) : v;
-  String m(double v, {bool paise = true}) =>
-      forPrint ? EscPos.ascii(money(v, paise: paise)).replaceAll('Rs', '') : money(v, paise: paise);
-  String fit(String v) => v.length <= w ? v : v.substring(0, w);
-  String line([String c = '-']) => c * w;
-  String lr(String l, String r) {
-    final space = w - l.length - r.length;
-    return space > 0 ? '$l${' ' * space}$r' : '${l.substring(0, (w - r.length - 1).clamp(0, l.length))} $r';
-  }
-  final c = forPrint ? '^C' : '';
-  final bold = forPrint ? '^B' : '';
-  final big = forPrint ? '^W' : '';
-
-  final co = s.catalog!.companies[s.device!.companyId];
-  final out = StringBuffer();
-  if (duplicate) out.writeln('$c${bold}DUPLICATE');
-  out
-    ..writeln('$c$big${fit(t((co?['legal_name'] ?? '').toString()))}')
-    ..writeln('$c${fit(t(s.device!.locationName))}');
-  if (co?['gstin'] != null) out.writeln('${c}GSTIN ${co!['gstin']}');
-  out
-    ..writeln(line())
-    ..writeln('$bold${lr('Bill ${b.docNo}', (b.invoice['doc_date'] ?? '').toString())}')
-    ..writeln(fit(t(b.customerName)))
-    ..writeln(line());
-  for (final l in b.lines) {
-    out.writeln(fit(t(l.item.fullName)));
-    out.writeln(lr('  ${t(qtyText(l.qty, l.item.soldByWeight))} x ${m(l.rate)}', m(l.amount)));
-  }
-  out
-    ..writeln(line())
-    ..writeln(lr('Taxable', m(b.totals.taxable)))
-    ..writeln(lr('GST', m(b.totals.gst)))
-    ..writeln(lr('Round off', m(b.totals.roundOff)))
-    ..writeln('$big${lr(forPrint ? 'TOTAL Rs' : 'TOTAL', m(b.totals.total, paise: false))}')
-    ..writeln(t(b.payLabel))
-    ..writeln(line())
-    ..writeln('$c${fit(t((co?['invoice_footer'] ?? 'Thank you!').toString()))}');
-  return out.toString();
-}
+/// Receipt text, laid out as head office set it (see core/receipt.dart).
+String receiptText(PosState s, SavedBill b, {int width = 48, bool forPrint = false, bool duplicate = false}) =>
+    buildReceipt(s, b, width: width, forPrint: forPrint, duplicate: duplicate);
 
 Future<void> showReceipt(BuildContext context, SavedBill b) async {
   final s = context.read<PosState>();

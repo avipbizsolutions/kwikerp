@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -97,8 +98,15 @@ class SyncService extends ChangeNotifier {
 
   Future<bool> _pull() async {
     final since = int.tryParse(await db.get('cursor') ?? '0') ?? 0;
-    final res = await api.pull(since);
+    final res = await api.pull(since, settingsVersion: await db.get('settings_version'));
     var changed = false;
+    // Receipt layout, only sent when head office changed it
+    final settings = res['settings'];
+    if (settings is Map) {
+      await db.set('receipt_settings', jsonEncode(settings['receipt']));
+      await db.set('settings_version', settings['version']?.toString());
+      changed = true;
+    }
     final tables = Map<String, dynamic>.from(res['tables'] as Map);
     for (final e in tables.entries) {
       final rows = e.value as List<dynamic>;

@@ -420,3 +420,23 @@ test('head office manages logins and tablets; switched-off ones stop working', a
   assert.equal((await call('GET', '/admin/users', cashierToken)).status, 403);
 });
 
+test('receipt layout is set at head office and reaches the tablet once', async () => {
+  const logo = { width: 16, height: 2, data: Buffer.from([0xff, 0x00, 0x0f, 0xf0]).toString('base64') };
+  const saved = await call('POST', '/settings/receipt', ownerToken, { footer: 'Visit again', showSavings: false, logo });
+  assert.equal(saved.status, 201, JSON.stringify(saved.body));
+  assert.equal(saved.body.footer, 'Visit again');
+  assert.equal((await call('POST', '/settings/receipt', ownerToken, { logo: { width: 10, height: 2, data: 'AA==' } })).status, 400);
+  assert.equal((await call('POST', '/settings/business', ownerToken,
+    { company: { gstin: '10AAFCT0798Q1ZV', phone: '9507305999' }, outlets: [{ code: 'DD3', address: 'Opp. Dr Lalit Mohan Sharma, Bihta' }] })).status, 201);
+  assert.equal((await call('POST', '/settings/business', ownerToken, { company: { gstin: 'BAD' } })).status, 400);
+  assert.equal((await call('GET', '/settings/receipt', cashierToken)).status, 403);
+
+  const p1 = (await call('GET', '/sync/pull?since=0', cashierToken)).body;
+  assert.equal(p1.settings.receipt.footer, 'Visit again');
+  assert.equal(p1.settings.receipt.logo.width, 16);
+  assert.ok(p1.tables.company.some((c: any) => c.gstin === '10AAFCT0798Q1ZV'));
+  const p2 = (await call('GET', `/sync/pull?since=${p1.cursor}&sv=${encodeURIComponent(p1.settings.version)}`, cashierToken)).body;
+  assert.equal(p2.settings, undefined, 'not sent again when unchanged');
+  await call('POST', '/settings/receipt', ownerToken, { logo: null, showSavings: true });
+});
+

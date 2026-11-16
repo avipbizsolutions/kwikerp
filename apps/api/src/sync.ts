@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Post, Query, Req, UseGuards
 import { PoolClient } from 'pg';
 import { AuthGuard, Session } from './auth';
 import { Db } from './db';
+import { receiptSettings } from './settings';
 
 /**
  * Offline sync for tablets.
@@ -110,7 +111,7 @@ export class SyncController {
   constructor(private readonly db: Db) {}
 
   @Get('pull')
-  async pull(@Req() req: any, @Query('since') sinceRaw?: string) {
+  async pull(@Req() req: any, @Query('since') sinceRaw?: string, @Query('sv') settingsVersion?: string) {
     const s: Session = req.session;
     if (!s.deviceId) throw new BadRequestException('Only registered tablets can sync');
     const since = Math.max(0, Number(sinceRaw ?? 0) - PULL_OVERLAP);
@@ -128,7 +129,10 @@ export class SyncController {
         for (const r of rows) cursor = Math.max(cursor, Number(r.server_seq));
       }
       await c.query('UPDATE device SET last_seen_at = now(), last_pull_seq = $2 WHERE id = $1', [s.deviceId, cursor]);
-      return { cursor, tables, outstanding: await outstandingSnapshot(c), serverTime: new Date().toISOString() };
+      // Receipt layout: sent only when it changed since the tablet's copy
+      const rs = await receiptSettings(c);
+      const settings = rs.version === settingsVersion ? undefined : { version: rs.version, receipt: rs.value };
+      return { cursor, tables, outstanding: await outstandingSnapshot(c), settings, serverTime: new Date().toISOString() };
     });
   }
 

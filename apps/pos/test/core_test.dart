@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kwikerp_pos/core/billing.dart';
 import 'package:kwikerp_pos/core/escpos.dart';
@@ -58,5 +60,15 @@ void main() {
     expect(normaliseServerUrl('HTTPS://api.kwikerp.cloud'), ok);
     expect(normaliseServerUrl('http://192.168.1.5:3100'), 'http://192.168.1.5:3100/api');
     expect(normaliseServerUrl('httpbin.example.in/api'), 'https://httpbin.example.in/api');
+  });
+
+  test('logo prints as a raster image', () {
+    final b64 = base64.encode([0xff, 0x00, 0x0f, 0xf0]);
+    final bytes = EscPos.encode('^G16,2,$b64\nHi', cut: false);
+    final i = bytes.indexOf(0x76);
+    expect(bytes.sublist(i - 1, i + 7), [0x1D, 0x76, 0x30, 0x00, 2, 0, 2, 0]);
+    expect(bytes.sublist(i + 7, i + 11), [0xff, 0x00, 0x0f, 0xf0]);
+    // a broken logo line is skipped, not printed
+    expect(String.fromCharCodes(EscPos.encode('^G9,9,xx\nHi', cut: false)).contains('9,9'), isFalse);
   });
 }

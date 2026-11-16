@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'local_db.dart';
 
 double _num(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
@@ -61,6 +63,9 @@ class Catalog {
   final Map<String, Customer> customers = {};
   final Map<String, Map<String, dynamic>> customerCategories = {};
   final Map<String, Map<String, dynamic>> companies = {};
+  final Map<String, Map<String, dynamic>> locations = {};
+  /// Receipt layout from head office (empty map = defaults).
+  Map<String, dynamic> receipt = {};
   final Map<String, Map<String, dynamic>> users = {};
   final List<Map<String, dynamic>> _packs = [];
   final List<Map<String, dynamic>> _prices = [];
@@ -94,6 +99,11 @@ class Catalog {
     for (final r in await db.masters('company')) {
       c.companies[r['id'] as String] = r;
     }
+    for (final r in await db.masters('location')) {
+      c.locations[r['id'] as String] = r;
+    }
+    final rs = await db.get('receipt_settings');
+    if (rs != null) c.receipt = Map<String, dynamic>.from(jsonDecode(rs) as Map);
     for (final r in await db.masters('app_user')) {
       c.users[r['id'] as String] = r;
     }
