@@ -178,3 +178,63 @@ String buildReceipt(PosState s, SavedBill b, {int width = 48, bool forPrint = fa
   }
   return out.toString();
 }
+
+
+/// KOT for the service team: items and quantities only, no prices.
+/// [docNo] is empty for a bill not saved yet; [updated] marks a KOT printed
+/// again after the items changed.
+String buildKot(PosState s,
+    {required List<BillLine> lines,
+    required int kotNo,
+    required String customer,
+    String? docNo,
+    int width = 48,
+    bool updated = false,
+    bool reprint = false}) {
+  final w = width;
+  String t(String v) => EscPos.ascii(v);
+  String lr(String l, String r) {
+    final space = w - l.length - r.length;
+    return space > 0 ? '$l${' ' * space}$r' : '${l.substring(0, (w - r.length - 1).clamp(0, l.length))} $r';
+  }
+
+  final line = '-' * w;
+  final now = DateTime.now();
+  String two(int v) => v.toString().padLeft(2, '0');
+  final time = '${two(now.hour % 12 == 0 ? 12 : now.hour % 12)}:${two(now.minute)} ${now.hour < 12 ? 'AM' : 'PM'}';
+  final out = StringBuffer()
+    ..writeln('^C^WKOT $kotNo')
+    ..writeln('^C${t(s.catalog!.locations[s.device!.locationId]?['name']?.toString() ?? s.device!.locationName)}');
+  if (updated) out.writeln('^C^BUPDATED - replaces earlier KOT $kotNo');
+  if (reprint) out.writeln('^C^BREPRINT');
+  out
+    ..writeln(line)
+    ..writeln(lr(docNo == null || docNo.isEmpty ? 'Order (not billed yet)' : 'Bill $docNo', time));
+  if (customer.isNotEmpty && customer != 'Walk-in customer') out.writeln(t('For: $customer'));
+  out.writeln(line);
+  var count = 0.0;
+  for (final l in lines) {
+    final q = l.item.soldByWeight
+        ? (l.qty < 1 ? '${(l.qty * 1000).round()} g' : '${l.qty.toStringAsFixed(3)} kg')
+        : '${l.qty.toStringAsFixed(l.qty % 1 == 0 ? 0 : 3)} x';
+    count += l.item.soldByWeight ? 1 : l.qty;
+    final qcol = q.padRight(8);
+    final name = t(l.item.fullName);
+    final room = w - qcol.length;
+    var rest = name;
+    var first = true;
+    while (rest.isNotEmpty) {
+      var cut = rest.length <= room ? rest.length : rest.lastIndexOf(' ', room);
+      if (cut <= 0) cut = rest.length < room ? rest.length : room;
+      out.writeln('^W${first ? qcol : ' ' * qcol.length}${rest.substring(0, cut).trim()}');
+      rest = rest.substring(cut).trim();
+      first = false;
+    }
+  }
+  final qn = count % 1 == 0 ? count.toStringAsFixed(0) : count.toStringAsFixed(3);
+  out
+    ..writeln(line)
+    ..writeln(lr('Items ${lines.length}', 'Qty $qn'))
+    ..writeln(t('By ${s.user?['name'] ?? ''}'));
+  return out.toString();
+}

@@ -453,9 +453,20 @@ Future<void> showReceipt(BuildContext context, SavedBill b) async {
   // Remembered for "Reprint last bill" even when no printer is set up yet.
   p.lastReceipt = receiptText(s, b, width: p.columns, forPrint: true, duplicate: true);
   String? status;
+  Future<String?> printKot({bool reprint = false}) async {
+    final kot = await s.kotFor(b.invoice['id'] as String, b.lines,
+        docNo: b.docNo, customer: b.customerName, width: p.columns, reprint: reprint);
+    return p.print(kot, remember: false);
+  }
+
   if (p.configured && p.autoPrint) {
     status = await p.print(printable(), remember: false);
     status ??= 'Printed';
+  }
+  // KOT after the bill, unless one already went out for these exact items
+  if (p.configured && p.autoKot && !s.kotUpToDate(b.invoice['id'] as String, b.lines)) {
+    final k = await printKot();
+    if (k != null) status = 'KOT: $k';
   }
   if (!context.mounted) return;
   await showDialog<void>(
@@ -477,7 +488,23 @@ Future<void> showReceipt(BuildContext context, SavedBill b) async {
         actions: [
           if (status != null)
             Text('$status  ',
-                style: TextStyle(color: status == 'Printed' ? Kc.greenInk : Kc.red, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    color: status == 'Printed' || status == 'KOT printed' ? Kc.greenInk : Kc.red,
+                    fontWeight: FontWeight.w600)),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(90, 52)),
+            onPressed: () async {
+              if (!p.configured) {
+                await showPrinterSetup(dialogContext);
+                if (!p.configured) return;
+              }
+              final again = s.kotUpToDate(b.invoice['id'] as String, b.lines);
+              setState(() => status = 'Printing KOT…');
+              final r = await printKot(reprint: again);
+              setState(() => status = r == null ? 'KOT printed' : 'KOT: $r');
+            },
+            child: const Text('KOT'),
+          ),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(130, 52)),
             icon: const Icon(Icons.print),
@@ -524,6 +551,7 @@ class _PrinterDialogState extends State<_PrinterDialog> {
   String? _name;
   late int _cols;
   late bool _auto;
+  late bool _kot;
   String? _test;
 
   @override
@@ -534,6 +562,7 @@ class _PrinterDialogState extends State<_PrinterDialog> {
     _name = p.name;
     _cols = p.columns;
     _auto = p.autoPrint;
+    _kot = p.autoKot;
     _load();
   }
 
@@ -550,7 +579,7 @@ class _PrinterDialogState extends State<_PrinterDialog> {
     }
   }
 
-  Future<void> _save() => context.read<PrinterService>().save(mac: _mac, name: _name, columns: _cols, autoPrint: _auto);
+  Future<void> _save() => context.read<PrinterService>().save(mac: _mac, name: _name, columns: _cols, autoPrint: _auto, autoKot: _kot);
 
   Future<void> _testPrint() async {
     await _save();
@@ -615,6 +644,13 @@ class _PrinterDialogState extends State<_PrinterDialog> {
             title: const Text('Print every bill automatically'),
             value: _auto,
             onChanged: (v) => setState(() => _auto = v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Print a KOT with every bill'),
+            subtitle: const Text('Items and quantities for the service team, after the bill'),
+            value: _kot,
+            onChanged: (v) => setState(() => _kot = v),
           ),
           if (_test != null) Text(_test!, style: const TextStyle(fontWeight: FontWeight.w600)),
         ]),

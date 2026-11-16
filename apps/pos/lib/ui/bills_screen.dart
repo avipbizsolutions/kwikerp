@@ -177,6 +177,21 @@ class _BillRow extends StatelessWidget {
                 child: const Text('Cancel bill'),
               ),
             if (!cancelled)
+              OutlinedButton(
+                onPressed: () async {
+                  if (!p.configured) {
+                    await showPrinterSetup(dialogContext);
+                    if (!p.configured) return;
+                  }
+                  setState(() => status = 'Printing KOT…');
+                  final kot = await s.kotFor(saved.invoice['id'] as String, saved.lines,
+                      docNo: saved.docNo, customer: saved.customerName, width: p.columns, reprint: true);
+                  final r = await p.print(kot, remember: false);
+                  setState(() => status = r ?? 'KOT printed');
+                },
+                child: const Text('KOT'),
+              ),
+            if (!cancelled)
               OutlinedButton.icon(
                 icon: const Icon(Icons.print),
                 label: const Text('Reprint'),

@@ -9,6 +9,7 @@ import 'billing.dart';
 import 'catalog.dart';
 import 'local_db.dart';
 import 'offline_code.dart';
+import 'receipt.dart';
 import 'sync_service.dart';
 
 class DeviceInfo {
@@ -478,7 +479,38 @@ class PosState extends ChangeNotifier {
         payLabel: paid > 0 ? 'Paid by ${mode.toUpperCase()}' : 'On credit');
   }
 
-  // ------------------------------------------------------------ bill history
+  // -------------------------------------------------------------------- KOT
+
+  final Map<String, ({int no, String items})> _kots = {};
+
+  String _kotItems(List<BillLine> lines) => lines.map((l) => '${l.item.id}:${l.qty}').join('|');
+
+  /// KOT text for a bill (saved or not). The first KOT of a bill takes the
+  /// next number of the day on this tablet; printing again after the items
+  /// changed keeps the number and says UPDATED.
+  Future<String> kotFor(String billId, List<BillLine> lines,
+      {String? docNo, required String customer, required int width, bool reprint = false}) async {
+    final items = _kotItems(lines);
+    var k = _kots[billId];
+    var updated = false;
+    if (k == null) {
+      final day = DateTime.now().toIso8601String().substring(0, 10);
+      final n = (int.tryParse(await db.get('kot_$day') ?? '0') ?? 0) + 1;
+      await db.set('kot_$day', '$n');
+      k = (no: n, items: items);
+    } else if (k.items != items) {
+      updated = true;
+      k = (no: k.no, items: items);
+    }
+    _kots[billId] = k;
+    return buildKot(this,
+        lines: lines, kotNo: k.no, customer: customer, docNo: docNo, width: width, updated: updated, reprint: reprint && !updated);
+  }
+
+  /// True when a KOT already went out for exactly these items.
+  bool kotUpToDate(String billId, List<BillLine> lines) => _kots[billId]?.items == _kotItems(lines);
+
+    // ------------------------------------------------------------ bill history
 
   /// Bills made on this tablet, newest first.
   Future<List<Map<String, dynamic>>> billHistory() async {

@@ -713,7 +713,17 @@ class _BottomBar extends StatelessWidget {
             ),
         ]),
         const SizedBox(height: 8),
-        SizedBox(
+        Row(children: [
+          SizedBox(
+            height: 56,
+            width: 96,
+            child: OutlinedButton(
+              onPressed: s.bill.isEmpty ? null : () => _printCartKot(context),
+              child: const Text('KOT', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: SizedBox(
           height: 56,
           child: FilledButton(
             onPressed: s.bill.isEmpty || saving ? null : onSave,
@@ -726,8 +736,30 @@ class _BottomBar extends StatelessWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ),
-        ),
+        )),
+        ]),
       ]),
     );
+  }
+}
+
+/// KOT for the bill being made, before it is saved.
+Future<void> _printCartKot(BuildContext context) async {
+  final s = context.read<PosState>();
+  final p = context.read<PrinterService>();
+  if (!p.configured) {
+    await showPrinterSetup(context);
+    if (!p.configured) return;
+  }
+  final bill = s.bill;
+  final kot = await s.kotFor(bill.id, List.of(bill.lines),
+      customer: bill.customer?.name ?? 'Walk-in customer', width: p.columns);
+  final r = await p.print(kot, remember: false);
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r ?? 'KOT printed'),
+      backgroundColor: r == null ? Kc.greenInk : Kc.red,
+      duration: const Duration(seconds: 2),
+    ));
   }
 }

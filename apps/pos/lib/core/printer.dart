@@ -21,6 +21,7 @@ class PrinterService extends ChangeNotifier {
   String? name;
   int columns = 48; // 80 mm paper; 32 for 58 mm
   bool autoPrint = true;
+  bool autoKot = false; // KOT for the service team with every bill
   String? lastReceipt;
   String? lastError;
   bool busy = false;
@@ -32,19 +33,23 @@ class PrinterService extends ChangeNotifier {
     name = await db.get('printer_name');
     columns = int.tryParse(await db.get('printer_columns') ?? '') ?? 48;
     autoPrint = (await db.get('printer_auto') ?? '1') == '1';
+    autoKot = (await db.get('printer_kot') ?? '0') == '1';
     notifyListeners();
   }
 
-  Future<void> save({required String? mac, required String? name, required int columns, required bool autoPrint}) async {
+  Future<void> save(
+      {required String? mac, required String? name, required int columns, required bool autoPrint, bool? autoKot}) async {
     if (mac != this.mac) await _disconnect();
     this.mac = mac;
     this.name = name;
     this.columns = columns;
     this.autoPrint = autoPrint;
+    if (autoKot != null) this.autoKot = autoKot;
     await db.set('printer_mac', mac);
     await db.set('printer_name', name);
     await db.set('printer_columns', '$columns');
     await db.set('printer_auto', autoPrint ? '1' : '0');
+    await db.set('printer_kot', this.autoKot ? '1' : '0');
     notifyListeners();
   }
 
