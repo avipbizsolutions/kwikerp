@@ -191,8 +191,8 @@ String buildKot(PosState s, {required List<BillLine> lines, int width = 48, bool
   }
 
   final line = '-' * w;
-  final out = StringBuffer()..writeln('^C^BKOT');
-  if (updated) out.writeln('^C^BUPDATED - replaces the earlier KOT');
+  final out = StringBuffer()..writeln('^C^BToken');
+  if (updated) out.writeln('^C^BUPDATED - replaces the earlier token');
   if (reprint) out.writeln('^C^BREPRINT');
   out.writeln(line);
   var count = 0.0;
