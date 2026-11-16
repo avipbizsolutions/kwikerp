@@ -24,8 +24,14 @@ export class ApprovalsController {
     const s: Session = req.session;
     return this.db.tx(s.tenantId, async (c) => (await c.query(
       `SELECT a.*, c.name AS customer_name, l.code AS location_code, l.name AS location_name,
-              u.name AS requested_by_name, cl.max_outstanding AS current_limit, cl.source AS limit_source
+              u.name AS requested_by_name, cl.max_outstanding AS current_limit, cl.source AS limit_source,
+              d.code AS device_code,
+              (SELECT string_agg(i.name || ' ×' || to_char(sl.qty, 'FM999990.###'), ', ' ORDER BY sl.line_no)
+                 FROM sales_invoice_line sl JOIN item i ON i.id = sl.item_id
+                WHERE sl.invoice_id = a.invoice_id AND sl.deleted_at IS NULL) AS items
          FROM credit_approval a
+         LEFT JOIN sales_invoice si ON si.id = a.invoice_id
+         LEFT JOIN device d ON d.id = si.device_id
          JOIN customer c ON c.id = a.customer_id
          JOIN location l ON l.id = a.location_id
          JOIN app_user u ON u.id = a.requested_by

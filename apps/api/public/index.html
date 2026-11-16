@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KwikERP Head Office</title>
+<style>
+  :root {
+    --navy: #12355b; --blue: #1e5aa8; --tint: #e8f0fa; --ground: #eef1f4; --ink: #17202a; --muted: #4a5868;
+    --line: #d5dce3; --green: #1f5c39; --greenbg: #e6f4ec; --amber: #7a4b00; --amberbg: #fff4e0; --red: #8a1c1c;
+    --redbg: #fbe9e9; --card: #fff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--ground); }
+  header { background: var(--navy); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  header small { color: #c9d6e6; display: block; font-weight: 400; font-size: 12px; }
+  header button { background: transparent; color: #fff; border: 1px solid #5a7898; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; }
+  nav { display: flex; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  nav button { flex: 1; border: 0; background: none; padding: 13px 6px; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; }
+  nav button.on { color: var(--navy); border-bottom-color: var(--navy); }
+  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #d93025; color: #fff; font-size: 12px; line-height: 20px; margin-left: 4px; }
+  main { max-width: 900px; margin: 0 auto; padding: 14px; }
+  .card { background: var(--card); border-radius: 10px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--line); }
+  .row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .big { font-size: 26px; font-weight: 800; color: var(--navy); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--amberbg); color: var(--amber); font-size: 12px; font-weight: 600; margin-right: 4px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; font: inherit; font-size: 17px; padding: 10px 12px; border: 1px solid #b8c2cc; border-radius: 8px; background: #fff; }
+  button.primary, button.ghost, button.danger { font: inherit; font-weight: 600; border-radius: 8px; padding: 11px 14px; border: 1px solid transparent; cursor: pointer; }
+  button.primary { background: var(--blue); color: #fff; }
+  button.ghost { background: #fff; border-color: #b8c2cc; color: var(--ink); }
+  button.danger { background: #fff; border-color: #e3b4b4; color: var(--red); }
+  button:disabled { opacity: .5; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .actions button { flex: 1 1 140px; }
+  .msg { padding: 10px 12px; border-radius: 8px; margin: 10px 0; }
+  .msg.err { background: var(--redbg); color: var(--red); }
+  .msg.ok { background: var(--greenbg); color: var(--green); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile b { display: block; font-size: 20px; color: var(--navy); font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px 12px; margin-top: 8px; font-size: 14px; color: var(--muted); }
+  .split b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .code { font-size: 44px; font-weight: 800; letter-spacing: 6px; color: var(--navy); text-align: center; padding: 10px; font-variant-numeric: tabular-nums; }
+  .login { max-width: 380px; margin: 8vh auto; }
+  .hidden { display: none !important; }
+  .inline { background: var(--ground); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<section id="login" class="login hidden">
+  <div class="card">
+    <div class="big" style="font-size:24px">KwikERP</div>
+    <div class="muted">Head office · approvals and sales</div>
+    <form id="loginForm">
+      <label for="tenant">Company code</label>
+      <input id="tenant" autocomplete="organization" value="TROIKA">
+      <label for="phone">Mobile number</label>
+      <input id="phone" inputmode="tel" autocomplete="username" required>
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" required>
+      <div id="loginMsg"></div>
+      <div class="actions"><button class="primary" type="submit">Log in</button></div>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <h1>KwikERP Head Office<small id="who"></small></h1>
+    <button id="logout" type="button">Log out</button>
+  </header>
+  <nav>
+    <button data-tab="approvals" class="on">Approvals<span id="badge" class="badge hidden"></span></button>
+    <button data-tab="sales">Sales</button>
+    <button data-tab="code">Offline code</button>
+  </nav>
+  <main>
+    <div id="tab-approvals">
+      <div id="apMsg"></div>
+      <div id="apList"></div>
+      <p class="muted">Refreshes every 20 seconds. Credit bills over the customer's limit wait here until you decide.</p>
+    </div>
+
+    <div id="tab-sales" class="hidden">
+      <div class="card">
+        <div class="row">
+          <div class="grow"><label for="from">From</label><input id="from" type="date"></div>
+          <div class="grow"><label for="to">To</label><input id="to" type="date"></div>
+        </div>
+        <div class="actions">
+          <button class="ghost" type="button" data-range="today">Today</button>
+          <button class="ghost" type="button" data-range="yesterday">Yesterday</button>
+          <button class="ghost" type="button" data-range="month">This month</button>
+          <button class="primary" type="button" id="loadSales">Show</button>
+        </div>
+      </div>
+      <div id="salesMsg"></div>
+      <div id="salesOut"></div>
+    </div>
+
+    <div id="tab-code" class="hidden">
+      <div class="card">
+        <div class="muted">For an outlet with no internet. The cashier reads out what the tablet's approval screen shows.</div>
+        <form id="codeForm">
+          <div class="row">
+            <div class="grow"><label for="cLoc">Outlet code</label><input id="cLoc" placeholder="DD3" required></div>
+            <div class="grow"><label for="cDev">Tablet</label><input id="cDev" placeholder="T1" value="T1" required></div>
+          </div>
+          <label for="cReq">Request code (4 letters on the tablet)</label>
+          <input id="cReq" autocomplete="off" maxlength="8" required style="text-transform:uppercase">
+          <label for="cAmt">Bill amount (₹)</label>
+          <input id="cAmt" inputmode="decimal" required>
+          <div class="actions"><button class="primary" type="submit">Get approval code</button></div>
+        </form>
+        <div id="codeOut"></div>
+      </div>
+    </div>
+  </main>
+</section>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
+  };
+  let token = store.get('kwik_token');
+  let me = null;
+  const inr = (v, paise) => '₹' + Number(v || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: paise ? 2 : 0, maximumFractionDigits: paise ? 2 : 0 });
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const msg = (el, text, ok) => { el.innerHTML = text ? `<div class="msg ${ok ? 'ok' : 'err'}">${esc(text)}</div>` : ''; };
+  const when = (t) => t ? new Date(t).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
+  const istDate = (d) => new Date(d.getTime() + 5.5 * 3600e3).toISOString().slice(0, 10);
+
+  async function api(method, path, body) {
+    const r = await fetch('/api' + path, {
+      method,
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401 && path !== '/auth/login') { logout(); throw new Error('Please log in again'); }
+    if (!r.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : (data.message || ('Error ' + r.status)));
+    return data;
+  }
+
+  // ---------------------------------------------------------------- login
+  function showLogin() { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); }
+  function logout() { token = null; me = null; store.set('kwik_token', null); clearInterval(timer); showLogin(); }
+  $('logout').onclick = logout;
+  const savedTenant = store.get('kwik_tenant'); if (savedTenant) $('tenant').value = savedTenant;
+  const savedPhone = store.get('kwik_phone'); if (savedPhone) $('phone').value = savedPhone;
+
+  $('loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    msg($('loginMsg'), '');
+    try {
+      const r = await api('POST', '/auth/login', { tenantCode: $('tenant').value.trim(), phone: $('phone').value.trim(), pin: $('pin').value });
+      token = r.token;
+      store.set('kwik_token', token);
+      store.set('kwik_tenant', $('tenant').value.trim().toUpperCase());
+      store.set('kwik_phone', $('phone').value.trim());
+      $('pin').value = '';
+      start();
+    } catch (err) { msg($('loginMsg'), err.message); }
+  };
+
+  // ----------------------------------------------------------------- tabs
+  document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+    document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+    ['approvals', 'sales', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    if (b.dataset.tab === 'sales') loadSales();
+    if (b.dataset.tab === 'approvals') loadApprovals();
+  });
+
+  // ------------------------------------------------------------ approvals
+  let timer = null;
+  async function loadApprovals() {
+    try {
+      const list = await api('GET', '/approvals?status=pending');
+      $('badge').textContent = list.length;
+      $('badge').classList.toggle('hidden', list.length === 0);
+      msg($('apMsg'), '');
+      if (!list.length) { $('apList').innerHTML = '<div class="card muted">No bills waiting for approval.</div>'; return; }
+      // Keep a form the manager is filling in.
+      const open = document.activeElement && document.activeElement.closest && document.activeElement.closest('.card[data-id]');
+      if (open) return;
+      $('apList').innerHTML = list.map((a) => {
+        const reasons = (a.reasons || []).map((r) => `<span class="pill">${esc({ amount: 'Over limit', days: 'Old dues', security: 'Over security' }[r] || r)}</span>`).join('');
+        const limit = a.limit_amount == null ? 'no limit set' : inr(a.limit_amount);
+        return `<div class="card" data-id="${esc(a.id)}">
+          <div class="row"><div class="grow"><b style="font-size:17px">${esc(a.customer_name)}</b><br>
+            <span class="muted">${esc(a.location_name)}${a.device_code ? ' · tablet ' + esc(a.device_code) : ''} · ${esc(a.requested_by_name)} · ${when(a.requested_at)}</span></div>
+            <div class="big">${inr(a.bill_amount)}</div></div>
+          <div style="margin-top:6px">${reasons}</div>
+          <div class="muted" style="margin-top:6px">Outstanding before this bill ${inr(a.outstanding)} · limit ${limit}${a.oldest_due_days != null ? ' · oldest due ' + esc(a.oldest_due_days) + ' days' : ''}</div>
+          ${a.items ? `<div style="margin-top:6px">${esc(a.items)}</div>` : ''}
+          <div class="actions">
+            <button class="primary" data-act="once">Approve this bill</button>
+            <button class="ghost" data-act="raise">Raise limit…</button>
+            <button class="danger" data-act="reject">Reject</button>
+          </div>
+          <div class="inline hidden" data-form="raise">
+            <label>New credit limit (₹)</label><input data-f="limit" inputmode="numeric" value="${Math.ceil((Number(a.outstanding) + Number(a.bill_amount)) / 1000) * 1000}">
+            <label>For how many days? (empty = permanent)</label><input data-f="days" inputmode="numeric" placeholder="permanent">
+            <div class="actions"><button class="primary" data-act="raise-go">Raise limit and approve</button></div>
+          </div>
+          <div class="inline hidden" data-form="reject">
+            <label>Reason (the cashier sees this)</label><input data-f="note" placeholder="e.g. clear old dues first">
+            <div class="actions"><button class="danger" data-act="reject-go">Reject bill</button></div>
+          </div>
+          <div data-msg></div>
+        </div>`;
+      }).join('');
+    } catch (err) { msg($('apMsg'), err.message); }
+  }
+
+  $('apList').onclick = async (e) => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const card = b.closest('.card'); const id = card.dataset.id; const act = b.dataset.act;
+    const f = (n) => card.querySelector(`[data-f="${n}"]`);
+    if (act === 'raise' || act === 'reject') {
+      card.querySelectorAll('[data-form]').forEach((x) => x.classList.toggle('hidden', x.dataset.form !== act || !x.classList.contains('hidden')));
+      return;
+    }
+    let body;
+    if (act === 'once') body = { decision: 'once' };
+    if (act === 'raise-go') {
+      const lim = Number(f('limit').value);
+      if (!(lim > 0)) return msg(card.querySelector('[data-msg]'), 'Enter the new limit');
+      body = { decision: 'raise_limit', newLimit: lim };
+      if (f('days').value.trim()) body.validDays = Number(f('days').value);
+    }
+    if (act === 'reject-go') body = { decision: 'reject', note: f('note').value.trim() || undefined };
+    card.querySelectorAll('button').forEach((x) => x.disabled = true);
+    try {
+      const r = await api('POST', `/approvals/${id}/decide`, body);
+      msg(card.querySelector('[data-msg]'), r.status === 'approved' ? 'Approved. The tablet picks it up at its next sync.' : 'Rejected.', true);
+      setTimeout(loadApprovals, 1500);
+    } catch (err) {
+      card.querySelectorAll('button').forEach((x) => x.disabled = false);
+      msg(card.querySelector('[data-msg]'), err.message);
+    }
+  };
+
+  // ---------------------------------------------------------------- sales
+  function setRange(kind) {
+    const now = new Date();
+    const today = istDate(now);
+    if (kind === 'today') { $('from').value = today; $('to').value = today; }
+    if (kind === 'yesterday') { const y = istDate(new Date(now.getTime() - 864e5)); $('from').value = y; $('to').value = y; }
+    if (kind === 'month') { $('from').value = today.slice(0, 8) + '01'; $('to').value = today; }
+  }
+  document.querySelectorAll('[data-range]').forEach((b) => b.onclick = () => { setRange(b.dataset.range); loadSales(); });
+  $('loadSales').onclick = loadSales;
+
+  async function loadSales() {
+    if (!$('from').value) setRange('today');
+    msg($('salesMsg'), '');
+    try {
+      const r = await api('GET', `/reports/sales?from=${$('from').value}&to=${$('to').value}`);
+      const t = r.total;
+      const rows = r.outlets.map((o) => `<div class="card outlet">
+          <div class="row"><div class="grow"><b>${esc(o.name)}</b><br>
+            <span class="muted">${o.bills} bills${o.cancelled ? ' · ' + o.cancelled + ' cancelled' : ''} · tablet seen ${when(o.tablet_last_seen)}</span></div>
+            <div class="big" style="font-size:22px">${inr(o.sales)}</div></div>
+          <div class="split">
+            <span>Cash <b>${inr(o.cash)}</b></span><span>UPI <b>${inr(o.upi)}</b></span>
+            <span>Card <b>${inr(o.card)}</b></span><span>Credit <b>${inr(o.credit)}</b></span>
+          </div>
+          ${o.pending_approvals ? `<div class="msg err" style="margin-bottom:0">${o.pending_approvals} bill(s) waiting for approval</div>` : ''}
+        </div>`).join('');
+      $('salesOut').innerHTML = `
+        <div class="tiles">
+          <div class="tile"><span class="muted">Sales</span><b>${inr(t.sales)}</b></div>
+          <div class="tile"><span class="muted">Bills</span><b>${t.bills}</b></div>
+          <div class="tile"><span class="muted">Cash</span><b>${inr(t.cash)}</b></div>
+          <div class="tile"><span class="muted">UPI</span><b>${inr(t.upi)}</b></div>
+          <div class="tile"><span class="muted">Card</span><b>${inr(t.card)}</b></div>
+          <div class="tile"><span class="muted">On credit</span><b>${inr(t.credit)}</b></div>
+        </div>
+        ${rows}
+        <p class="muted">Bills reach the server when each tablet syncs, so an offline outlet shows up later.</p>
+        <div class="card"><b>Top items</b><table>
+          <tr><th>Item</th><th>Qty</th><th>Amount</th></tr>
+          ${r.topItems.map((i) => `<tr><td>${esc(i.name)}</td><td>${Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 3 })}</td><td>${inr(i.amount)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No sales</td></tr>'}
+        </table></div>`;
+    } catch (err) { msg($('salesMsg'), err.message); }
+  }
+
+  // --------------------------------------------------------- offline code
+  $('codeForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api('POST', '/approvals/offline-code', {
+        locationCode: $('cLoc').value.trim(), deviceCode: $('cDev').value.trim(),
+        requestCode: $('cReq').value.trim(), amount: Number($('cAmt').value) });
+      $('codeOut').innerHTML = `<div class="muted" style="margin-top:12px">Tell the cashier this code:</div>
+        <div class="code">${esc(r.approvalCode.slice(0, 3))} ${esc(r.approvalCode.slice(3))}</div>
+        <div class="muted">Works only on ${esc($('cLoc').value.toUpperCase())}-${esc($('cDev').value.toUpperCase())}, for this request and amount.</div>`;
+    } catch (err) { msg($('codeOut'), err.message); }
+  };
+
+  // ---------------------------------------------------------------- start
+  async function start() {
+    try {
+      me = await api('GET', '/auth/me');
+    } catch (e) { return showLogin(); }
+    $('who').textContent = me.userName || '';
+    $('login').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    loadApprovals();
+    clearInterval(timer);
+    timer = setInterval(() => { if (!document.hidden) loadApprovals(); }, 20000);
+  }
+  token ? start() : showLogin();
+})();
+</script>
+</body>
+</html>

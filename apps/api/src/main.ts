@@ -9,6 +9,7 @@ import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
 import { config } from './config';
 import { Db } from './db';
+import { ReportsController } from './reports';
 import { SyncController } from './sync';
 
 @Controller()
@@ -34,7 +35,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}
@@ -44,6 +45,8 @@ export async function createApp() {
   app.useBodyParser('json', { limit: '20mb' }); // a day's bills from an offline tablet
   app.enableCors();
   app.setGlobalPrefix('api');
+  // Head-office web page at the site root (apps/api/public).
+  app.useStaticAssets(join(__dirname, '..', 'public'), { index: 'index.html', maxAge: '5m' });
   return app;
 }
 

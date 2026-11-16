@@ -1,6 +1,6 @@
 import {
   Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get, Injectable,
-  Post, Req, SetMetadata, UnauthorizedException, UseGuards, BadRequestException,
+  Post, Req, SetMetadata, UnauthorizedException, UseGuards, BadRequestException, HttpException, HttpStatus,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as bcrypt from 'bcryptjs';
@@ -46,6 +46,35 @@ export class AuthGuard implements CanActivate {
   }
 }
 
+/**
+ * Wrong-PIN lock-out. A 4-digit PIN is guessable, and the login is reachable
+ * from the internet, so 5 wrong tries lock that phone (and 20 lock that
+ * network address) for 15 minutes. Kept in memory: a restart clears it.
+ */
+const LOCK_MS = 15 * 60 * 1000;
+const failures = new Map<string, { n: number; first: number }>();
+
+function lockedFor(key: string, limit: number): number {
+  const f = failures.get(key);
+  if (!f) return 0;
+  if (Date.now() - f.first > LOCK_MS) {
+    failures.delete(key);
+    return 0;
+  }
+  return f.n >= limit ? Math.ceil((f.first + LOCK_MS - Date.now()) / 60000) : 0;
+}
+
+function recordFailure(key: string) {
+  const f = failures.get(key);
+  if (!f || Date.now() - f.first > LOCK_MS) failures.set(key, { n: 1, first: Date.now() });
+  else f.n += 1;
+}
+
+/** Test hook. */
+export function clearLoginFailures() {
+  failures.clear();
+}
+
 interface LoginBody {
   tenantCode: string;
   phone: string;
@@ -59,10 +88,31 @@ export class AuthController {
 
   /** PIN login. Tablets pass deviceId; the manager phone app does not. */
   @Post('login')
-  async login(@Body() body: LoginBody) {
+  async login(@Body() body: LoginBody, @Req() req: any) {
     if (!body?.tenantCode || !body?.phone || !body?.pin) {
       throw new BadRequestException('tenantCode, phone and pin are required');
     }
+    const ip = String(req.headers?.['x-forwarded-for'] ?? req.ip ?? '').split(',')[0].trim();
+    const phoneKey = `p:${body.tenantCode.trim().toUpperCase()}:${body.phone.trim()}`;
+    const ipKey = `i:${ip}`;
+    const wait = Math.max(lockedFor(phoneKey, 5), lockedFor(ipKey, 20));
+    if (wait > 0) {
+      throw new HttpException(`Too many wrong PINs. Try again in ${wait} min.`, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    try {
+      const res = await this.doLogin(body);
+      failures.delete(phoneKey);
+      return res;
+    } catch (e) {
+      if (e instanceof UnauthorizedException && String(e.message).startsWith('Wrong')) {
+        recordFailure(phoneKey);
+        recordFailure(ipKey);
+      }
+      throw e;
+    }
+  }
+
+  private async doLogin(body: LoginBody) {
     const tenant = await this.db.tx(null, async (c) =>
       (await c.query('SELECT id, name FROM tenant WHERE code = $1', [body.tenantCode.trim().toUpperCase()])).rows[0]);
     if (!tenant) throw new UnauthorizedException('Wrong company code, phone or PIN');

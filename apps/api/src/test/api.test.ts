@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { Client } from 'pg';
+import { clearLoginFailures } from '../auth';
 import { createApp } from '../main';
 import { approvalCode } from '../offline-code';
 
@@ -195,3 +196,35 @@ test('another tenant sees nothing', async () => {
   await c.end();
   assert.equal(n, 0);
 });
+
+test('sales report by outlet, for head office only', async () => {
+  const r = await call('GET', '/reports/sales?from=2000-01-01&to=2099-12-31', ownerToken);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const dd3 = r.body.outlets.find((o: any) => o.code === 'DD3');
+  assert.ok(dd3 && dd3.bills >= 1 && dd3.sales > 0, JSON.stringify(dd3));
+  assert.ok(r.body.total.sales >= dd3.sales);
+  assert.ok(Array.isArray(r.body.topItems) && r.body.topItems.length > 0);
+  assert.equal((await call('GET', '/reports/sales', cashierToken)).status, 403);
+  assert.equal((await call('GET', '/reports/sales?from=2026-13-01', ownerToken)).status, 400);
+});
+
+test('five wrong PINs lock that phone for a while', async () => {
+  clearLoginFailures();
+  for (let i = 0; i < 5; i++) {
+    const r = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone: '9222222222', pin: '0000' });
+    assert.equal(r.status, 401);
+  }
+  const locked = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone: '9222222222', pin: '5678' });
+  assert.equal(locked.status, 429, 'even the right PIN waits');
+  // Other phones are not affected
+  const other = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone: '9111111111', pin: '1234' });
+  assert.equal(other.status, 201);
+  clearLoginFailures();
+});
+
+test('head-office page is served at the site root', async () => {
+  const res = await fetch(base.replace(/\/api$/, '/'));
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /KwikERP Head Office/);
+});
+
