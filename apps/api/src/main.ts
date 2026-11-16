@@ -13,6 +13,7 @@ import { BillsController } from './bills';
 import { CustomersController } from './customers';
 import { ReportsController } from './reports';
 import { SyncController } from './sync';
+import { TallyController } from './tally';
 
 @Controller()
 class HealthController {
@@ -52,7 +53,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

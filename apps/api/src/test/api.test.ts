@@ -14,6 +14,7 @@ import { Client } from 'pg';
 import { clearLoginFailures } from '../auth';
 import { createApp } from '../main';
 import { approvalCode } from '../offline-code';
+import { buildVouchers, DEFAULT_TALLY, vouchersXml } from '../tally';
 
 let base = '';
 let app: any;
@@ -334,5 +335,48 @@ test('day-end report for an outlet', async () => {
   assert.ok(r.body.cancelled.some((x: any) => x.cancel_reason === 'Wrong item' && x.cancelled_by === 'Test Owner'));
   assert.equal((await call('GET', '/reports/dayend?date=2026-11-16', ownerToken)).status, 400);
   assert.equal((await call('GET', '/reports/dayend?date=2026-11-16&location=DD3', cashierToken)).status, 403);
+});
+
+test('Tally vouchers balance and follow the ledger names', () => {
+  const st = { ...DEFAULT_TALLY, cash: 'Cash - {outlet}' };
+  const inv = (id: string, doc: string, total: number, balance: number, customer: string | null = null) =>
+    ({ id, doc_no: doc, doc_date: '2026-11-16', outlet: 'DD3', customer, total, paid: total - balance, balance, round_off: 0 });
+  const v = buildVouchers(
+    [inv('a', 'DD3-T1-2627-000001', 105, 0), inv('b', 'DD3-T1-2627-000002', 36, 0),
+      inv('c', 'DD3-T1-2627-000003', 525, 425, 'Gupta Kirana')],
+    [{ invoice_id: 'a', gst_rate: 5, taxable: 100, cgst: 2.5, sgst: 2.5, igst: 0 },
+      { invoice_id: 'b', gst_rate: 0, taxable: 35.6, cgst: 0, sgst: 0, igst: 0 },
+      { invoice_id: 'c', gst_rate: 5, taxable: 500, cgst: 12.5, sgst: 12.5, igst: 0 }],
+    [{ invoice_id: 'a', mode: 'cash', amount: 105 }, { invoice_id: 'b', mode: 'upi', amount: 36 },
+      { invoice_id: 'c', mode: 'cash', amount: 100 }], st);
+  assert.equal(v.length, 3, 'day summary + credit bill + its part payment');
+  for (const x of v) assert.equal(Math.round(x.entries.reduce((a, e) => a + e.amount, 0) * 100), 0, x.key);
+  const day = v[0];
+  assert.deepEqual(day.entries.find((e) => e.ledger === 'Cash - DD3')?.amount, 105);
+  assert.ok(day.entries.some((e) => e.ledger === 'Sales Exempt' && e.amount === -35.6));
+  assert.ok(day.entries.some((e) => e.ledger === 'Round Off' && e.amount === -0.4));
+  assert.ok(v[1].entries.some((e) => e.ledger === 'Gupta Kirana' && e.amount === 525 && e.billRef));
+  const xml = vouchersXml(v, st);
+  assert.match(xml, /<LEDGERNAME>Sales @5%<\/LEDGERNAME>/);
+  assert.match(xml, /<BILLTYPE>New Ref<\/BILLTYPE>/);
+  assert.match(xml, /REMOTEID="kwik-day-DD3-2026-11-16"/);
+});
+
+test('Tally export from the server', async () => {
+  const pre = await call('GET', '/tally/preview?from=2026-11-01&to=2026-11-30', ownerToken);
+  assert.equal(pre.status, 200, JSON.stringify(pre.body));
+  for (const v of pre.body.vouchers) {
+    assert.equal(Math.round(v.entries.reduce((a: number, e: any) => a + e.amount, 0) * 100), 0, v.key);
+  }
+  const res = await fetch(`${base}/tally/vouchers.xml?from=2026-11-01&to=2026-11-30`, { headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition') ?? '', /kwikerp-tally-2026-11-01_2026-11-30\.xml/);
+  assert.match(await res.text(), /<ENVELOPE>/);
+  const saved = await call('POST', '/tally/settings', ownerToken, { upi: 'PhonePe Collections' });
+  assert.equal(saved.body.upi, 'PhonePe Collections');
+  assert.equal((await call('POST', '/tally/settings', ownerToken, { cash: ' ' })).status, 400);
+  assert.equal((await call('GET', '/tally/preview?from=2026-11-01&to=2026-11-30', cashierToken)).status, 403);
+  const led = await fetch(`${base}/tally/ledgers.xml`, { headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.match(await led.text(), /<PARENT>Sundry Debtors<\/PARENT>/);
 });
 

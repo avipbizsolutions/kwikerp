@@ -89,6 +89,7 @@
     <button data-tab="sales">Sales</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="limits">Limits</button>
+    <button data-tab="tally">Tally</button>
     <button data-tab="code">Code</button>
   </nav>
   <main>
@@ -134,6 +135,36 @@
         A limit of ₹0 means every credit bill needs your approval. Leave the amount empty for no amount limit.</div>
       <div id="liMsg"></div>
       <div id="liList"></div>
+    </div>
+
+    <div id="tab-tally" class="hidden">
+      <div class="card">
+        <div class="muted">Makes a file to import in TallyPrime: <b>Gateway of Tally → Import → Transactions</b>.
+          Bills paid in full go in as one sales voucher per outlet per day; each credit bill goes in separately against
+          the customer, so dues match in Tally. Cancelled bills are left out.</div>
+        <div class="row">
+          <div class="grow"><label for="tFrom">From</label><input id="tFrom" type="date"></div>
+          <div class="grow"><label for="tTo">To</label><input id="tTo" type="date"></div>
+        </div>
+        <label for="tLoc">Outlet</label><select id="tLoc"><option value="">All outlets</option></select>
+        <div class="actions">
+          <button class="ghost" type="button" id="tPrev">Check</button>
+          <button class="primary" type="button" id="tDown">Download Tally file</button>
+        </div>
+        <div id="tMsg"></div>
+      </div>
+      <div id="tOut"></div>
+      <details class="card">
+        <summary><b>Tally ledger names</b> <span class="muted">(set once; must match your Tally exactly)</span></summary>
+        <p class="muted">{outlet} becomes the outlet code (e.g. "Cash - {outlet}" → "Cash - DD3"); {rate} becomes the GST rate.</p>
+        <form id="tSet"></form>
+      </details>
+      <div class="card">
+        <b>First import only</b>
+        <p class="muted">Credit customers need a ledger in Tally before their bills can be imported. This file creates them
+          under Sundry Debtors with bill-wise details on. Import it with <b>Import → Masters</b>; customers already in Tally are skipped.</p>
+        <div class="actions"><button class="ghost" type="button" id="tLed">Download customer ledgers</button></div>
+      </div>
     </div>
 
     <div id="tab-code" class="hidden">
@@ -208,10 +239,11 @@
   // ----------------------------------------------------------------- tabs
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'customers', 'limits', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    ['approvals', 'sales', 'customers', 'limits', 'tally', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
     if (b.dataset.tab === 'sales') loadSales();
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'limits') loadLimits();
+    if (b.dataset.tab === 'tally') openTally();
     if (b.dataset.tab === 'approvals') loadApprovals();
   });
 
@@ -384,6 +416,79 @@
       el.scrollIntoView();
     } catch (err) { msg($('salesMsg'), err.message); }
   }
+
+  // ---------------------------------------------------------------- tally
+  const TALLY_FIELDS = [
+    ['company', 'Tally company name (empty = the company open in Tally)'],
+    ['salesVoucherType', 'Sales voucher type'], ['receiptVoucherType', 'Receipt voucher type'],
+    ['cash', 'Cash ledger'], ['upi', 'UPI ledger'], ['card', 'Card ledger'], ['other', 'Cheque / bank ledger'],
+    ['sales', 'Sales ledger (taxed)'], ['salesExempt', 'Sales ledger (0% GST)'],
+    ['cgst', 'Output CGST'], ['sgst', 'Output SGST'], ['igst', 'Output IGST'], ['roundOff', 'Round off ledger'],
+    ['debtorsGroup', 'Group for customer ledgers'],
+  ];
+  let tallyReady = false;
+  async function openTally() {
+    if (!$('tFrom').value) {
+      const y = istDate(new Date(Date.now() - 864e5)); $('tFrom').value = y; $('tTo').value = y;
+    }
+    if (tallyReady) return;
+    try {
+      const m = await getMeta();
+      $('tLoc').innerHTML = '<option value="">All outlets</option>' + m.locations.map((l) => `<option value="${esc(l.code)}">${esc(l.code)} · ${esc(l.name)}</option>`).join('');
+      const st = await api('GET', '/tally/settings');
+      $('tSet').innerHTML = TALLY_FIELDS.map(([k, label]) => `<label>${esc(label)}</label><input name="${k}" value="${esc(st[k])}">`).join('') +
+        '<div class="actions"><button class="primary" type="submit">Save ledger names</button></div><div data-m></div>';
+      tallyReady = true;
+    } catch (err) { msg($('tMsg'), err.message); }
+  }
+  $('tSet').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('POST', '/tally/settings', Object.fromEntries(new FormData(e.target).entries()));
+      msg(e.target.querySelector('[data-m]'), 'Saved.', true);
+    } catch (err) { msg(e.target.querySelector('[data-m]'), err.message); }
+  };
+  const tallyQs = () => `from=${$('tFrom').value}&to=${$('tTo').value}${$('tLoc').value ? '&location=' + encodeURIComponent($('tLoc').value) : ''}`;
+  $('tPrev').onclick = async () => {
+    msg($('tMsg'), '');
+    try {
+      const r = await api('GET', '/tally/preview?' + tallyQs());
+      const rows = r.vouchers.map((v) => `<tr><td>${esc(v.number)}<br><span class="muted">${esc(v.narration)}</span></td>
+        <td>${esc(v.type === 'sales' ? 'Sales' : 'Receipt')}</td><td>${inr(v.total, true)}</td></tr>`).join('');
+      $('tOut').innerHTML = `
+        ${r.previous.length ? `<div class="msg err">Already exported for these dates on ${r.previous.map((p) => when(p.exported_at)).join(', ')}.
+          Importing again would add the vouchers twice in Tally.</div>` : ''}
+        ${r.duplicateNames.length ? `<div class="msg err">These customer names are used more than once and would share one Tally ledger:
+          ${r.duplicateNames.map((d) => esc(d.name)).join(', ')}. Rename them on the Customers tab.</div>` : ''}
+        <div class="tiles">
+          <div class="tile"><span class="muted">Bills</span><b>${r.bills}</b></div>
+          <div class="tile"><span class="muted">Sales</span><b>${inr(r.total)}</b></div>
+          <div class="tile"><span class="muted">Vouchers</span><b>${r.vouchers.length}</b></div>
+          <div class="tile"><span class="muted">Credit customers</span><b>${r.creditCustomers}</b></div>
+        </div>
+        <div class="card"><b>Ledgers used</b><p class="muted">Each must exist in Tally with exactly this name.</p>
+          <div>${r.ledgers.map((l) => `<span class="pill" style="background:var(--tint);color:var(--navy)">${esc(l)}</span>`).join(' ')}</div></div>
+        <div class="card scroll"><b>Vouchers</b><table><tr><th>Number</th><th>Type</th><th>Amount</th></tr>${rows || '<tr><td colspan="3" class="muted">Nothing to export</td></tr>'}</table></div>`;
+    } catch (err) { msg($('tMsg'), err.message); }
+  };
+  async function download(path, name) {
+    const r = await fetch('/api' + path, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || 'Error ' + r.status); }
+    const disp = r.headers.get('content-disposition') || '';
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (disp.match(/filename="([^"]+)"/) || [])[1] || name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  $('tDown').onclick = async () => {
+    try { await download('/tally/vouchers.xml?' + tallyQs(), 'kwikerp-tally.xml'); msg($('tMsg'), 'Downloaded. Import it in TallyPrime.', true); }
+    catch (err) { msg($('tMsg'), err.message); }
+  };
+  $('tLed').onclick = async () => {
+    try { await download('/tally/ledgers.xml', 'kwikerp-tally-customer-ledgers.xml'); } catch (err) { msg($('tMsg'), err.message); }
+  };
   // --------------------------------------------------------- offline code
   $('codeForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -554,7 +659,7 @@
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
     const can = (p) => (me.permissions || []).includes('*') || (me.permissions || []).includes(p);
-    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', limits: 'credit.limit.set', code: 'credit.approve' };
+    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', limits: 'credit.limit.set', tally: 'accounts.export', code: 'credit.approve' };
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !can(need[b.dataset.tab])));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
