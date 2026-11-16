@@ -184,8 +184,7 @@ class _BillRow extends StatelessWidget {
                     if (!p.configured) return;
                   }
                   setState(() => status = 'Printing KOT…');
-                  final kot = await s.kotFor(saved.invoice['id'] as String, saved.lines,
-                      docNo: saved.docNo, customer: saved.customerName, width: p.columns, reprint: true);
+                  final kot = s.kotFor(saved.invoice['id'] as String, saved.lines, width: p.columns, reprint: true);
                   final r = await p.print(kot, remember: false);
                   setState(() => status = r ?? 'KOT printed');
                 },

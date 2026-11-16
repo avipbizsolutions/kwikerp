@@ -481,34 +481,22 @@ class PosState extends ChangeNotifier {
 
   // -------------------------------------------------------------------- KOT
 
-  final Map<String, ({int no, String items})> _kots = {};
+  /// What each bill's last KOT contained, to mark a changed one UPDATED.
+  final Map<String, String> _kots = {};
 
   String _kotItems(List<BillLine> lines) => lines.map((l) => '${l.item.id}:${l.qty}').join('|');
 
-  /// KOT text for a bill (saved or not). The first KOT of a bill takes the
-  /// next number of the day on this tablet; printing again after the items
-  /// changed keeps the number and says UPDATED.
-  Future<String> kotFor(String billId, List<BillLine> lines,
-      {String? docNo, required String customer, required int width, bool reprint = false}) async {
+  /// KOT text for a bill (saved or not).
+  String kotFor(String billId, List<BillLine> lines, {required int width, bool reprint = false}) {
     final items = _kotItems(lines);
-    var k = _kots[billId];
-    var updated = false;
-    if (k == null) {
-      final day = DateTime.now().toIso8601String().substring(0, 10);
-      final n = (int.tryParse(await db.get('kot_$day') ?? '0') ?? 0) + 1;
-      await db.set('kot_$day', '$n');
-      k = (no: n, items: items);
-    } else if (k.items != items) {
-      updated = true;
-      k = (no: k.no, items: items);
-    }
-    _kots[billId] = k;
-    return buildKot(this,
-        lines: lines, kotNo: k.no, customer: customer, docNo: docNo, width: width, updated: updated, reprint: reprint && !updated);
+    final before = _kots[billId];
+    final updated = before != null && before != items;
+    _kots[billId] = items;
+    return buildKot(this, lines: lines, width: width, updated: updated, reprint: reprint && !updated);
   }
 
   /// True when a KOT already went out for exactly these items.
-  bool kotUpToDate(String billId, List<BillLine> lines) => _kots[billId]?.items == _kotItems(lines);
+  bool kotUpToDate(String billId, List<BillLine> lines) => _kots[billId] == _kotItems(lines);
 
     // ------------------------------------------------------------ bill history
 

@@ -752,8 +752,7 @@ Future<void> _printCartKot(BuildContext context) async {
     if (!p.configured) return;
   }
   final bill = s.bill;
-  final kot = await s.kotFor(bill.id, List.of(bill.lines),
-      customer: bill.customer?.name ?? 'Walk-in customer', width: p.columns);
+  final kot = s.kotFor(bill.id, List.of(bill.lines), width: p.columns);
   final r = await p.print(kot, remember: false);
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(

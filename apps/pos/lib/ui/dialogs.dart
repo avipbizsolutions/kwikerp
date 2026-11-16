@@ -453,21 +453,20 @@ Future<void> showReceipt(BuildContext context, SavedBill b) async {
   // Remembered for "Reprint last bill" even when no printer is set up yet.
   p.lastReceipt = receiptText(s, b, width: p.columns, forPrint: true, duplicate: true);
   String? status;
-  Future<String?> printKot({bool reprint = false}) async {
-    final kot = await s.kotFor(b.invoice['id'] as String, b.lines,
-        docNo: b.docNo, customer: b.customerName, width: p.columns, reprint: reprint);
-    return p.print(kot, remember: false);
-  }
+  Future<String?> printKot({bool reprint = false}) =>
+      p.print(s.kotFor(b.invoice['id'] as String, b.lines, width: p.columns, reprint: reprint), remember: false);
 
+  // KOT first (for the service team), then the bill. No second KOT if one
+  // already went out for these exact items while billing.
+  String? kotError;
+  if (p.configured && p.autoKot && !s.kotUpToDate(b.invoice['id'] as String, b.lines)) {
+    kotError = await printKot();
+  }
   if (p.configured && p.autoPrint) {
     status = await p.print(printable(), remember: false);
     status ??= 'Printed';
   }
-  // KOT after the bill, unless one already went out for these exact items
-  if (p.configured && p.autoKot && !s.kotUpToDate(b.invoice['id'] as String, b.lines)) {
-    final k = await printKot();
-    if (k != null) status = 'KOT: $k';
-  }
+  if (kotError != null) status = 'KOT: $kotError';
   if (!context.mounted) return;
   await showDialog<void>(
     context: context,
@@ -648,7 +647,7 @@ class _PrinterDialogState extends State<_PrinterDialog> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Print a KOT with every bill'),
-            subtitle: const Text('Items and quantities for the service team, after the bill'),
+            subtitle: const Text('Items and quantities for the service team, printed before the bill'),
             value: _kot,
             onChanged: (v) => setState(() => _kot = v),
           ),
