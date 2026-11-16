@@ -61,6 +61,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 FilledButton(onPressed: _busy ? null : _login, child: Text(_busy ? 'Logging in…' : 'Log in')),
                 const SizedBox(height: 8),
                 const Text('The first login needs internet.', style: TextStyle(color: Kc.muted, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text('Server ${context.read<PosState>().serverUrl ?? ''}',
+                    style: const TextStyle(color: Kc.muted, fontSize: 12)),
+                TextButton(
+                  onPressed: () => context.read<PosState>().resetSetup(),
+                  child: const Text('Change server or tablet code'),
+                ),
               ],
             ),
           ),

@@ -13,7 +13,7 @@ class SetupScreen extends StatefulWidget {
 }
 
 class _SetupScreenState extends State<SetupScreen> {
-  final _url = TextEditingController(text: 'https://');
+  final _url = TextEditingController(text: 'https://api.kwikerp.cloud/api');
   final _tenant = TextEditingController(text: 'TROIKA');
   final _device = TextEditingController();
 

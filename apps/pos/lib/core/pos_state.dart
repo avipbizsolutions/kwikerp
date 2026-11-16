@@ -69,7 +69,9 @@ class PosState extends ChangeNotifier {
       (catalog?.companies[device?.companyId]?['state_code'] as String?)?.trim() ?? '10';
 
   Future<void> init() async {
-    serverUrl = await db.get('server_url');
+    final savedUrl = await db.get('server_url');
+    serverUrl = savedUrl == null ? null : normaliseServerUrl(savedUrl);
+    if (serverUrl != savedUrl) await db.set('server_url', serverUrl);
     tenantCode = await db.get('tenant_code');
     deviceId = await db.get('device_id');
     token = await db.get('token');
@@ -84,12 +86,22 @@ class PosState extends ChangeNotifier {
   }
 
   Future<void> saveSetup(String url, String tenant, String devId) async {
-    serverUrl = url.trim();
+    serverUrl = normaliseServerUrl(url);
     tenantCode = tenant.trim().toUpperCase();
     deviceId = devId.trim();
     await db.set('server_url', serverUrl);
     await db.set('tenant_code', tenantCode);
     await db.set('device_id', deviceId);
+    notifyListeners();
+  }
+
+  /// Back to the setup screen (wrong server address or tablet code).
+  /// Bills already on the tablet and waiting to sync are kept.
+  Future<void> resetSetup() async {
+    serverUrl = null;
+    deviceId = null;
+    await db.set('server_url', null);
+    await db.set('device_id', null);
     notifyListeners();
   }
 
@@ -507,4 +519,19 @@ class PosState extends ChangeNotifier {
     await sync?.refreshPending();
     notifyListeners();
   }
+}
+
+/// Turns whatever was typed into `https://host/api`:
+/// "api.kwikerp.cloud", "https://https//api.kwikerp.cloud/api/" and the like.
+String normaliseServerUrl(String typed) {
+  var u = typed.trim().replaceAll(' ', '');
+  // Drop any number of leading schemes, including broken ones like "https//".
+  final scheme = RegExp(r'^(https?(:/*|//+))+', caseSensitive: false);
+  final hadHttpOnly = RegExp(r'^http:', caseSensitive: false).hasMatch(u) && !u.toLowerCase().startsWith('https');
+  u = u.replaceFirst(scheme, '');
+  while (u.endsWith('/')) {
+    u = u.substring(0, u.length - 1);
+  }
+  if (!u.toLowerCase().endsWith('/api')) u = '$u/api';
+  return '${hadHttpOnly ? 'http' : 'https'}://$u';
 }

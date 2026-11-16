@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kwikerp_pos/core/billing.dart';
 import 'package:kwikerp_pos/core/escpos.dart';
 import 'package:kwikerp_pos/core/offline_code.dart';
+import 'package:kwikerp_pos/core/pos_state.dart';
 
 void main() {
   test('offline approval code matches the server (apps/api/src/offline-code.ts)', () {
@@ -47,5 +48,15 @@ void main() {
     final plain = bytes.indexOf('P'.codeUnitAt(0));
     expect(bytes.sublist(plain - 9, plain), [0x1B, 0x61, 0, 0x1B, 0x45, 0, 0x1D, 0x21, 0]);
     expect(bytes.every((b) => b >= 0 && b < 256), isTrue);
+  });
+
+  test('server address is cleaned up', () {
+    const ok = 'https://api.kwikerp.cloud/api';
+    expect(normaliseServerUrl('https://https//api.kwikerp.cloud/api'), ok);
+    expect(normaliseServerUrl('https://https://api.kwikerp.cloud/api/'), ok);
+    expect(normaliseServerUrl(' api.kwikerp.cloud '), ok);
+    expect(normaliseServerUrl('HTTPS://api.kwikerp.cloud'), ok);
+    expect(normaliseServerUrl('http://192.168.1.5:3100'), 'http://192.168.1.5:3100/api');
+    expect(normaliseServerUrl('httpbin.example.in/api'), 'https://httpbin.example.in/api');
   });
 }
