@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import 'api.dart';
+import 'app_version.dart';
 import 'billing.dart';
 import 'catalog.dart';
 import 'local_db.dart';
@@ -82,6 +84,7 @@ class PosState extends ChangeNotifier {
     shiftId = await db.get('shift_id');
     if (shiftId != null) shift = await db.doc('shift', shiftId!);
     if (isLoggedIn) await _startSession();
+    startUpdateChecks();
     notifyListeners();
   }
 
@@ -92,6 +95,7 @@ class PosState extends ChangeNotifier {
     await db.set('server_url', serverUrl);
     await db.set('tenant_code', tenantCode);
     await db.set('device_id', deviceId);
+    startUpdateChecks();
     notifyListeners();
   }
 
@@ -144,8 +148,45 @@ class PosState extends ChangeNotifier {
     sync = s;
     await reloadCatalog();
     bill = Bill(levelId: device!.defaultLevelId);
+    _billReady = true;
     s.start();
   }
+
+  // ------------------------------------------------------- mandatory update
+
+  bool _billReady = false;
+  Timer? _updateTimer;
+
+  /// Build number the server says is current, when it is newer than this app.
+  int? requiredBuild;
+  bool get updateRequired => requiredBuild != null;
+
+  /// A bill in progress or on hold must be finished before updating.
+  bool get billInProgress => (_billReady && !bill.isEmpty) || held.isNotEmpty;
+
+  /// Asks the server for the newest app now and every 10 minutes.
+  void startUpdateChecks() {
+    _updateTimer?.cancel();
+    checkForUpdate();
+    _updateTimer = Timer.periodic(const Duration(minutes: 10), (_) => checkForUpdate());
+  }
+
+  Future<void> checkForUpdate() async {
+    if (serverUrl == null || appBuild == 0) return;
+    try {
+      final v = await Api(serverUrl!).appVersion();
+      final latest = (v['versionCode'] as num?)?.toInt() ?? 0;
+      final need = latest > appBuild ? latest : null;
+      if (need != requiredBuild) {
+        requiredBuild = need;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Offline: keep working with this version; check again later.
+    }
+  }
+
+  String get updateUrl => '${serverUrl!.replaceAll(RegExp(r'/+$'), '')}/download/pos.apk';
 
   Future<void> reloadCatalog() async {
     catalog = await Catalog.load(db, device?.locationId);

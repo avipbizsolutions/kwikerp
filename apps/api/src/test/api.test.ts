@@ -320,3 +320,9 @@ test('a cashier cancels a bill with the manager\'s PIN; payment and stock are re
   assert.equal((await admin.query('SELECT status FROM sales_invoice WHERE id = $1', [id])).rows[0].status, 'cancelled');
 });
 
+test('tablets can ask for the newest app build', async () => {
+  const r = await call('GET', '/download/pos/version', '');
+  assert.equal(r.status, 200);
+  assert.equal(typeof r.body.versionCode, 'number');
+});
+

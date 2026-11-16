@@ -10,6 +10,7 @@ import 'ui/login_screen.dart';
 import 'ui/setup_screen.dart';
 import 'ui/shift_screens.dart';
 import 'ui/theme.dart';
+import 'ui/update_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,9 @@ class _Root extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<PosState>();
+    // A newer app on the server must be installed first; a bill being made
+    // or on hold is finished before the update screen takes over.
+    if (s.updateRequired && !s.billInProgress) return const UpdateScreen();
     if (!s.isSetUp) return const SetupScreen();
     if (!s.isLoggedIn) return const LoginScreen();
     if (!s.hasCatalog) return const FirstSyncScreen();

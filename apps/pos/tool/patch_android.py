@@ -21,5 +21,15 @@ missing = [p for p in permissions if re.search(r'android:name="[^"]+"', p).group
 if missing:
     xml = xml.replace("<application", "\n    ".join(missing) + "\n    <application", 1)
 
+# Lets the app open the update download in the browser (Android 11+ package visibility).
+if 'android:scheme="https"' not in xml:
+    xml = xml.replace("<application", (
+        '<queries>\n'
+        '        <intent>\n'
+        '            <action android:name="android.intent.action.VIEW"/>\n'
+        '            <data android:scheme="https"/>\n'
+        '        </intent>\n'
+        '    </queries>\n    <application'), 1)
+
 manifest.write_text(xml)
 print("AndroidManifest.xml patched:", ", ".join(re.findall(r'permission\.(\w+)', xml)))

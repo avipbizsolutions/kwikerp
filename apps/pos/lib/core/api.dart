@@ -68,4 +68,10 @@ class Api {
         .timeout(const Duration(seconds: 20));
     return Map<String, dynamic>.from(await _decode(r) as Map);
   }
+
+  /// Newest tablet app on the server: {versionCode, path}. No login needed.
+  Future<Map<String, dynamic>> appVersion() async {
+    final r = await http.get(_u('/download/pos/version'), headers: _headers).timeout(const Duration(seconds: 15));
+    return Map<String, dynamic>.from(await _decode(r) as Map);
+  }
 }

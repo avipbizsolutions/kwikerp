@@ -145,6 +145,10 @@ if as_app git -C $BASE/src fetch -q origin apk 2>/dev/null; then
   apksigner sign --ks $KS --ks-key-alias kwikerp-pos --ks-pass file:$KS_PASS_FILE --out $TMP/out.apk $TMP/in.apk
   apksigner verify $TMP/out.apk
   install -o kwikerp -g kwikerp -m 644 $TMP/out.apk $BASE/downloads/kwikerp-pos.apk
+  # Version last, so tablets are only told to update once the new file is in place.
+  as_app git -C $BASE/src show FETCH_HEAD:kwikerp-pos.json > $TMP/v.json 2>/dev/null \
+    && install -o kwikerp -g kwikerp -m 644 $TMP/v.json $BASE/downloads/kwikerp-pos.json \
+    && echo "App version: $(cat $BASE/downloads/kwikerp-pos.json)"
   rm -rf $TMP
   ls -lh $BASE/downloads/kwikerp-pos.apk
 else

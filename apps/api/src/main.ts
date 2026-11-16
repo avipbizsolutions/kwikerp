@@ -3,7 +3,7 @@ import { Controller, Get, Module, NotFoundException, Res } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
@@ -33,6 +33,21 @@ class DownloadController {
     const file = join(config.downloadDir, 'kwikerp-pos.apk');
     if (!existsSync(file)) throw new NotFoundException('App file not uploaded yet');
     res.download(file, 'kwikerp-pos.apk', { headers: { 'Content-Type': 'application/vnd.android.package-archive' } });
+  }
+
+  /** Newest tablet app build. Tablets with a lower build number must update. */
+  @Get('pos/version')
+  version() {
+    const file = join(config.downloadDir, 'kwikerp-pos.json');
+    const apk = join(config.downloadDir, 'kwikerp-pos.apk');
+    if (!existsSync(file) || !existsSync(apk)) return { versionCode: 0 };
+    try {
+      const v = JSON.parse(readFileSync(file, 'utf8'));
+      return { versionCode: Number(v.versionCode) || 0, commit: v.commit ?? null, builtAt: v.builtAt ?? null,
+        path: '/download/pos.apk' };
+    } catch {
+      return { versionCode: 0 };
+    }
   }
 }
 

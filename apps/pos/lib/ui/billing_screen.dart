@@ -92,6 +92,13 @@ class _BillingScreenState extends State<BillingScreen> {
       body: SafeArea(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const _TopBar(),
+          if (s.updateRequired)
+            Container(
+              color: const Color(0xFFD93025),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: const Text('Update required: finish this bill and any held bills, then the update screen opens.',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
           const _CustomerStrip(),
           Expanded(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

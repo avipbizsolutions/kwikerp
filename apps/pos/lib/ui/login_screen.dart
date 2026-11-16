@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_version.dart';
 import '../core/pos_state.dart';
 import 'theme.dart';
 
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 const Text('The first login needs internet.', style: TextStyle(color: Kc.muted, fontSize: 13)),
                 const SizedBox(height: 4),
-                Text('Server ${context.read<PosState>().serverUrl ?? ''}',
+                Text('Server ${context.read<PosState>().serverUrl ?? ''} · $appVersionLabel',
                     style: const TextStyle(color: Kc.muted, fontSize: 12)),
                 TextButton(
                   onPressed: () => context.read<PosState>().resetSetup(),
