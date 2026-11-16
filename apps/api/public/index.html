@@ -211,6 +211,17 @@
           <label>Lines under the title</label><textarea name="header" rows="5" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
           <label>Footer</label><textarea name="footer" rows="2" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
           <div id="rcOpts"></div>
+          <div class="inline">
+            <b>Paper spacing</b> <span class="muted">(blank lines, about 4 mm each; 0 to 10; same for every outlet)</span>
+            <div class="scroll"><table style="max-width:420px">
+              <tr><th></th><th style="text-align:center">Top</th><th style="text-align:center">Bottom</th></tr>
+              <tr><td><b>Bill</b></td><td><input name="billTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
+                <td><input name="billBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
+              <tr><td><b>Token</b></td><td><input name="tokenTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
+                <td><input name="tokenBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
+            </table></div>
+            <div class="muted">Top: paper before the first line. Bottom: paper after the last line, so the slip clears the tear bar.</div>
+          </div>
           <div class="actions"><button class="primary" type="submit">Save receipt layout</button></div>
           <div data-m></div>
         </form>
@@ -698,6 +709,7 @@
       rc = await api('GET', '/settings/receipt');
       const f = $('rcForm');
       f.title.value = rc.receipt.title; f.header.value = rc.receipt.header; f.footer.value = rc.receipt.footer;
+      ['billTop', 'billBottom', 'tokenTop', 'tokenBottom'].forEach((k) => { f[k].value = rc.receipt[k] ?? (k.endsWith('Bottom') ? 4 : 0); });
       $('rcOpts').innerHTML = RC_OPTS.map(([k, l]) => `<label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px">
         <input type="checkbox" name="${k}" style="width:auto"${rc.receipt[k] ? ' checked' : ''}> ${esc(l)}</label>`).join('');
       rcLogo = rc.receipt.logo;
@@ -757,6 +769,11 @@
     const f = e.target;
     const body = { title: f.title.value, header: f.header.value, footer: f.footer.value, logo: rcLogo };
     RC_OPTS.forEach(([k]) => { body[k] = f[k].checked; });
+    for (const k of ['billTop', 'billBottom', 'tokenTop', 'tokenBottom']) {
+      const n = Number(f[k].value);
+      if (!Number.isInteger(n) || n < 0 || n > 10) { msg(f.querySelector('[data-m]'), 'Spacing must be 0 to 10 lines'); return; }
+      body[k] = n;
+    }
     try { await api('POST', '/settings/receipt', body); msg(f.querySelector('[data-m]'), 'Saved. Tablets use it after their next sync (about a minute).', true); }
     catch (err) { msg(f.querySelector('[data-m]'), err.message); }
   };
@@ -791,6 +808,8 @@
     const lr = (l, r) => l + ' '.repeat(Math.max(1, w - l.length - r.length)) + r;
     const on = (k) => f[k] && f[k].checked;
     const L = []; const line = '-'.repeat(w);
+    const blank = (n) => { for (let i = 0; i < (Number(n) || 0); i++) L.push(''); };
+    blank(f.billTop.value);
     if (rcLogo) L.push(centre('[ logo ]'));
     expand(f.title.value).forEach((t) => L.push(centre(t.toUpperCase())));
     expand(f.header.value).forEach((t) => L.push(centre(t)));
@@ -816,6 +835,7 @@
     if (on('showSavings')) L.push(centre('You saved Rs 12'));
     L.push(line);
     expand(f.footer.value).forEach((t) => L.push(centre(t)));
+    blank(f.billBottom.value); L.push(centre('- - - tear here - - -'));
     $('rcPrev').textContent = L.join('\n');
   }
 

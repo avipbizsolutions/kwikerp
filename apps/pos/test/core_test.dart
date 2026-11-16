@@ -71,4 +71,12 @@ void main() {
     // a broken logo line is skipped, not printed
     expect(String.fromCharCodes(EscPos.encode('^G9,9,xx\nHi', cut: false)).contains('9,9'), isFalse);
   });
+
+  test('top and bottom spacing', () {
+    final b = EscPos.encode('^T3\nHi\n^F2', cut: false);
+    expect(b.sublist(2, 5), [0x1B, 0x64, 3], reason: 'top feed right after init');
+    expect(b.sublist(b.length - 3), [0x1B, 0x64, 2], reason: 'bottom feed at the end');
+    final none = EscPos.encode('Hi\n^F0', cut: false);
+    expect(none.sublist(none.length - 3).contains(0x64), isFalse);
+  });
 }

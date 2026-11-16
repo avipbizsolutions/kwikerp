@@ -7,12 +7,24 @@ import 'dart:convert';
 /// with a marker get formatting:
 ///   `^C` centred, `^B` bold, `^W` bold + double height (shop name, total).
 ///   `^G<width>,<height>,<base64>` prints a 1-bit logo (rows of width/8 bytes), centred.
+///   `^T<n>` feeds n blank lines (top spacing); `^F<n>` sets the blank lines after
+///   the last line (bottom spacing), instead of [feedLines].
 class EscPos {
   static const _esc = 0x1B, _gs = 0x1D;
 
   static List<int> encode(String text, {int feedLines = 4, bool cut = true}) {
     final out = <int>[_esc, 0x40]; // initialise
+    var bottom = feedLines;
     for (final raw in text.split('\n')) {
+      if (raw.startsWith('^T')) {
+        final n = (int.tryParse(raw.substring(2)) ?? 0).clamp(0, 10);
+        if (n > 0) out.addAll([_esc, 0x64, n]);
+        continue;
+      }
+      if (raw.startsWith('^F')) {
+        bottom = (int.tryParse(raw.substring(2)) ?? feedLines).clamp(0, 10);
+        continue;
+      }
       if (raw.startsWith('^G')) {
         out.addAll(_image(raw.substring(2)));
         continue;
@@ -38,7 +50,7 @@ class EscPos {
       out.add(0x0A);
     }
     out.addAll([_esc, 0x61, 0, _esc, 0x45, 0, _gs, 0x21, 0]);
-    out.addAll([_esc, 0x64, feedLines]); // feed so the receipt clears the tear bar
+    if (bottom > 0) out.addAll([_esc, 0x64, bottom]); // feed so the receipt clears the tear bar
     if (cut) out.addAll([_gs, 0x56, 0x42, 0x00]); // partial cut; ignored by printers without a cutter
     return out;
   }

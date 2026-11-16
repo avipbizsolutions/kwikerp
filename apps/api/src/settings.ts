@@ -18,6 +18,11 @@ export interface ReceiptSettings {
   splitGst: boolean;        // CGST and SGST lines instead of one GST line
   showSavings: boolean;     // saving against MRP when billed below it
   logo: { width: number; height: number; data: string } | null; // 1-bit rows, base64
+  // Blank paper, in printer lines (about 4 mm each), 0 to 10
+  billTop: number;
+  billBottom: number;
+  tokenTop: number;
+  tokenBottom: number;
 }
 
 export const DEFAULT_RECEIPT: ReceiptSettings = {
@@ -31,6 +36,10 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
   splitGst: true,
   showSavings: true,
   logo: null,
+  billTop: 0,
+  billBottom: 4,
+  tokenTop: 0,
+  tokenBottom: 4,
 };
 
 export async function receiptSettings(c: any): Promise<{ value: ReceiptSettings; version: string }> {
@@ -74,6 +83,12 @@ export class SettingsController {
       if (typeof b?.[k] === 'string') clean[k] = (b[k] as string).slice(0, 600);
     }
     for (const k of BOOL_KEYS) if (typeof b?.[k] === 'boolean') clean[k] = b[k] as boolean;
+    for (const k of ['billTop', 'billBottom', 'tokenTop', 'tokenBottom'] as const) {
+      if (b?.[k] === undefined) continue;
+      const n = Number(b[k]);
+      if (!Number.isInteger(n) || n < 0 || n > 10) throw new BadRequestException('Spacing must be 0 to 10 lines');
+      clean[k] = n;
+    }
     if (b && 'logo' in b) {
       if (b.logo === null) clean.logo = null;
       else {

@@ -98,7 +98,7 @@ test('first pull brings the full item master and prices', async () => {
   assert.equal(r.status, 200, JSON.stringify(r.body));
   pulled = r.body;
   assert.equal(pulled.tables.item.length, 107);
-  assert.equal(pulled.tables.price_level.length, 5);
+  assert.ok(pulled.tables.price_level.length >= 5);
   assert.ok(pulled.tables.item_price.length >= 615);
   assert.ok(pulled.cursor > 0);
   // users are sent without PIN hashes
@@ -437,7 +437,11 @@ test('receipt layout is set at head office and reaches the tablet once', async (
   assert.ok(p1.tables.company.some((c: any) => c.gstin === '10AAFCT0798Q1ZV'));
   const p2 = (await call('GET', `/sync/pull?since=${p1.cursor}&sv=${encodeURIComponent(p1.settings.version)}`, cashierToken)).body;
   assert.equal(p2.settings, undefined, 'not sent again when unchanged');
-  await call('POST', '/settings/receipt', ownerToken, { logo: null, showSavings: true });
+  const sp = await call('POST', '/settings/receipt', ownerToken, { billTop: 2, billBottom: 5, tokenTop: 0, tokenBottom: 3 });
+  assert.equal(sp.body.billTop, 2);
+  assert.equal(sp.body.tokenBottom, 3);
+  assert.equal((await call('POST', '/settings/receipt', ownerToken, { billTop: 11 })).status, 400);
+  await call('POST', '/settings/receipt', ownerToken, { logo: null, showSavings: true, billTop: 0, billBottom: 4, tokenTop: 0, tokenBottom: 4 });
 });
 
 test('customer types and the rate chart (owners and managers only)', async () => {

@@ -75,7 +75,9 @@ String buildReceipt(PosState s, SavedBill b, {int width = 48, bool forPrint = fa
     return out;
   }
 
+  int lines(String k, int d) => r[k] is num ? (r[k] as num).toInt().clamp(0, 10) : d;
   final out = StringBuffer();
+  if (forPrint) out.writeln('^T${lines('billTop', 0)}');
   final logo = r['logo'];
   if (forPrint && logo is Map && logo['data'] is String) {
     out.writeln('^G${logo['width']},${logo['height']},${logo['data']}');
@@ -176,6 +178,7 @@ String buildReceipt(PosState s, SavedBill b, {int width = 48, bool forPrint = fa
       out.writeln('$c$p');
     }
   }
+  if (forPrint) out.writeln('^F${lines('billBottom', 4)}');
   return out.toString();
 }
 
@@ -191,7 +194,11 @@ String buildKot(PosState s, {required List<BillLine> lines, int width = 48, bool
   }
 
   final line = '-' * w;
-  final out = StringBuffer()..writeln('^C^BToken');
+  final r = s.catalog!.receipt;
+  int sp(String k, int d) => r[k] is num ? (r[k] as num).toInt().clamp(0, 10) : d;
+  final out = StringBuffer()
+    ..writeln('^T${sp('tokenTop', 0)}')
+    ..writeln('^C^BToken');
   if (updated) out.writeln('^C^BUPDATED - replaces the earlier token');
   if (reprint) out.writeln('^C^BREPRINT');
   out.writeln(line);
@@ -216,6 +223,7 @@ String buildKot(PosState s, {required List<BillLine> lines, int width = 48, bool
   final qn = count % 1 == 0 ? count.toStringAsFixed(0) : count.toStringAsFixed(3);
   out
     ..writeln(line)
-    ..writeln(lr('Items ${lines.length}', 'Qty $qn'));
+    ..writeln(lr('Items ${lines.length}', 'Qty $qn'))
+    ..writeln('^F${sp('tokenBottom', 4)}');
   return out.toString();
 }
