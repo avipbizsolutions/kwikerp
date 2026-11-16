@@ -228,3 +228,47 @@ test('head-office page is served at the site root', async () => {
   assert.match(await res.text(), /KwikERP Head Office/);
 });
 
+test('head office adds a customer and sets category and own limits', async () => {
+  const meta = (await call('GET', '/customers/meta', ownerToken)).body;
+  const retailer = meta.categories.find((c: any) => c.code === 'RETAILER');
+  assert.ok(retailer);
+  const phone = `9${Math.floor(Math.random() * 1e9).toString().padStart(9, '0')}`;
+  const add = await call('POST', '/customers', ownerToken,
+    { name: 'Test Retailer', categoryId: retailer.id, phone: `+91 ${phone}`, gstin: '10aafct0798q1zv' });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  const id = add.body.id;
+  const dup = await call('POST', '/customers', ownerToken, { name: 'Copy', categoryId: retailer.id, phone });
+  assert.equal(dup.status, 400, 'same mobile twice is refused');
+
+  const find = async () => (await call('GET', `/customers?q=${phone}`, ownerToken)).body[0];
+  let c = await find();
+  assert.equal(c.state_code, '10', 'state from GSTIN');
+  assert.equal(c.phone, phone);
+
+  // Category limit applies...
+  assert.equal((await call('POST', '/credit-limits', ownerToken, { categoryId: retailer.id, maxOutstanding: 5000 })).status, 201);
+  c = await find();
+  assert.equal(c.limit_amount, 5000);
+  assert.equal(c.limit_source, 'category');
+  // ...until the customer gets their own, set twice on the same day: the last one wins
+  await call('POST', '/credit-limits', ownerToken, { customerId: id, maxOutstanding: 8000 });
+  await call('POST', '/credit-limits', ownerToken, { customerId: id, maxOutstanding: 12000 });
+  c = await find();
+  assert.equal(c.limit_amount, 12000);
+  assert.equal(c.limit_source, 'customer');
+  // A temporary raise sits on top, and removing it all goes back to the category
+  await call('POST', '/credit-limits', ownerToken, { customerId: id, maxOutstanding: 20000, validDays: 7 });
+  c = await find();
+  assert.equal(c.limit_amount, 20000);
+  assert.ok(c.own_limit_until);
+  await call('POST', '/credit-limits', ownerToken, { customerId: id, remove: true });
+  c = await find();
+  assert.equal(c.limit_source, 'category');
+  // Put the category back to 0 for other tests
+  await call('POST', '/credit-limits', ownerToken, { categoryId: retailer.id, maxOutstanding: 0 });
+
+  // Cashiers cannot do any of this
+  assert.equal((await call('POST', '/credit-limits', cashierToken, { customerId: id, maxOutstanding: 1 })).status, 403);
+  assert.equal((await call('GET', '/customers', cashierToken)).status, 403);
+});
+

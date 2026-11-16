@@ -17,7 +17,8 @@
   header small { color: #c9d6e6; display: block; font-weight: 400; font-size: 12px; }
   header button { background: transparent; color: #fff; border: 1px solid #5a7898; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; }
   nav { display: flex; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
-  nav button { flex: 1; border: 0; background: none; padding: 13px 6px; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; }
+  nav { overflow-x: auto; }
+  nav button { flex: 1; white-space: nowrap; border: 0; background: none; padding: 13px 8px; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; }
   nav button.on { color: var(--navy); border-bottom-color: var(--navy); }
   .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #d93025; color: #fff; font-size: 12px; line-height: 20px; margin-left: 4px; }
   main { max-width: 900px; margin: 0 auto; padding: 14px; }
@@ -82,7 +83,9 @@
   <nav>
     <button data-tab="approvals" class="on">Approvals<span id="badge" class="badge hidden"></span></button>
     <button data-tab="sales">Sales</button>
-    <button data-tab="code">Offline code</button>
+    <button data-tab="customers">Customers</button>
+    <button data-tab="limits">Limits</button>
+    <button data-tab="code">Code</button>
   </nav>
   <main>
     <div id="tab-approvals">
@@ -106,6 +109,26 @@
       </div>
       <div id="salesMsg"></div>
       <div id="salesOut"></div>
+    </div>
+
+    <div id="tab-customers" class="hidden">
+      <div class="card">
+        <div class="row">
+          <div class="grow" style="flex-basis:200px"><label for="cuQ">Search name, mobile or code</label><input id="cuQ" autocomplete="off"></div>
+          <div class="grow" style="flex-basis:150px"><label for="cuCat">Type</label><select id="cuCat"><option value="">All types</option></select></div>
+        </div>
+        <div class="actions"><button class="primary" type="button" id="cuAdd">Add customer</button></div>
+      </div>
+      <div id="cuEdit"></div>
+      <div id="cuMsg"></div>
+      <div id="cuList"></div>
+    </div>
+
+    <div id="tab-limits" class="hidden">
+      <div class="card muted">Limit for each customer type. A customer's own limit, when set, replaces their type's limit.
+        A limit of ₹0 means every credit bill needs your approval. Leave the amount empty for no amount limit.</div>
+      <div id="liMsg"></div>
+      <div id="liList"></div>
     </div>
 
     <div id="tab-code" class="hidden">
@@ -180,8 +203,10 @@
   // ----------------------------------------------------------------- tabs
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    ['approvals', 'sales', 'customers', 'limits', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
     if (b.dataset.tab === 'sales') loadSales();
+    if (b.dataset.tab === 'customers') loadCustomers();
+    if (b.dataset.tab === 'limits') loadLimits();
     if (b.dataset.tab === 'approvals') loadApprovals();
   });
 
@@ -313,12 +338,165 @@
     } catch (err) { msg($('codeOut'), err.message); }
   };
 
+  // ------------------------------------------------------------ customers
+  let meta = null;
+  async function getMeta(force) {
+    if (!meta || force) {
+      meta = await api('GET', '/customers/meta');
+      $('cuCat').innerHTML = '<option value="">All types</option>' +
+        meta.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    }
+    return meta;
+  }
+  const limitText = (amount, days, until) => {
+    const parts = [];
+    parts.push(amount == null ? 'no amount limit' : inr(amount));
+    if (days) parts.push(`bills up to ${days} days old`);
+    if (until) parts.push(`until ${new Date(until).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`);
+    return parts.join(' · ');
+  };
+  let cuTimer = null;
+  $('cuQ').oninput = () => { clearTimeout(cuTimer); cuTimer = setTimeout(loadCustomers, 300); };
+  $('cuCat').onchange = loadCustomers;
+  let customers = [];
+  async function loadCustomers() {
+    try {
+      const cat = $('cuCat').value;
+      await getMeta();
+      $('cuCat').value = cat;
+      customers = await api('GET', `/customers?q=${encodeURIComponent($('cuQ').value)}&category=${encodeURIComponent($('cuCat').value)}`);
+      msg($('cuMsg'), '');
+      $('cuList').innerHTML = customers.length ? customers.map((c) => `
+        <div class="card" data-cu="${esc(c.id)}" style="cursor:pointer${c.is_active ? '' : ';opacity:.6'}">
+          <div class="row"><div class="grow"><b>${esc(c.name)}</b>${c.is_active ? '' : ' <span class="pill">inactive</span>'}<br>
+            <span class="muted">${esc(c.category)}${c.phone ? ' · ' + esc(c.phone) : ''}${c.home_location ? ' · ' + esc(c.home_location) : ''}${c.price_level ? ' · ' + esc(c.price_level) + ' rates' : ''}</span></div>
+            <div style="text-align:right"><div class="big" style="font-size:20px">${inr(c.outstanding)}</div><span class="muted">due</span></div></div>
+          <div class="muted" style="margin-top:4px">Limit ${limitText(c.limit_amount, c.limit_days, c.own_limit_until)}
+            (${c.limit_source === 'customer' ? 'own limit' : c.limit_source === 'category' ? 'type limit' : 'none set'})</div>
+        </div>`).join('') : '<div class="card muted">No customers found.</div>';
+    } catch (err) { msg($('cuMsg'), err.message); }
+  }
+  $('cuList').onclick = (e) => { const el = e.target.closest('[data-cu]'); if (el) editCustomer(customers.find((c) => c.id === el.dataset.cu)); };
+  $('cuAdd').onclick = () => editCustomer(null);
+
+  async function editCustomer(c) {
+    const m = await getMeta();
+    const opt = (list, sel, blank, withCode) => (blank ? `<option value="">${blank}</option>` : '') +
+      list.map((x) => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(withCode && !x.name.startsWith(x.code) ? x.code + ' · ' + x.name : x.name)}</option>`).join('');
+    const v = c || { is_active: true };
+    $('cuEdit').innerHTML = `<div class="card" style="border-color:var(--blue)">
+      <div class="row"><b class="grow" style="font-size:17px">${c ? 'Edit ' + esc(c.name) : 'New customer'}</b>
+        <button class="ghost" type="button" data-x="close">Close</button></div>
+      <form id="cuForm">
+        <label>Name *</label><input name="name" required value="${esc(v.name)}">
+        <div class="row">
+          <div class="grow" style="flex-basis:160px"><label>Type *</label><select name="categoryId" required>${opt(m.categories, v.category_id, 'Choose…')}</select></div>
+          <div class="grow" style="flex-basis:160px"><label>Mobile</label><input name="phone" inputmode="tel" value="${esc(v.phone)}"></div>
+        </div>
+        <div class="row">
+          <div class="grow" style="flex-basis:160px"><label>Rates</label><select name="priceLevelId">${opt(m.priceLevels, v.price_level_id, 'Type default')}</select></div>
+          <div class="grow" style="flex-basis:160px"><label>Served by</label><select name="homeLocationId">${opt(m.locations, v.home_location_id, 'Any outlet', true)}</select></div>
+        </div>
+        <div class="row">
+          <div class="grow" style="flex-basis:160px"><label>GSTIN</label><input name="gstin" value="${esc(v.gstin)}" style="text-transform:uppercase"></div>
+          <div class="grow" style="flex-basis:100px"><label>Code</label><input name="code" value="${esc(v.code)}"></div>
+        </div>
+        <label>Address</label><input name="address" value="${esc(v.address)}">
+        <div class="row">
+          <div class="grow" style="flex-basis:140px"><label>Security held (₹)</label><input name="securityAmount" inputmode="decimal" value="${v.security_amount ?? ''}"></div>
+          <div class="grow" style="flex-basis:140px"><label>Opening balance (₹)</label><input name="openingBalance" inputmode="decimal" value="${v.opening_balance ?? ''}"></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="isActive" style="width:auto"${v.is_active ? ' checked' : ''}> Active (shown on tablets)</label>
+        <div class="actions"><button class="primary" type="submit">Save customer</button></div>
+        <div data-m></div>
+      </form>
+      ${c ? `<div class="inline">
+        <b>Credit limit</b>
+        <div class="muted">Now: ${limitText(c.limit_amount, c.limit_days, c.own_limit_until)} (${c.limit_source === 'customer' ? 'own limit' : c.limit_source === 'category' ? 'from type ' + esc(c.category) : 'none set'})</div>
+        <form id="cuLimit">
+          <div class="row">
+            <div class="grow" style="flex-basis:120px"><label>Amount (₹)</label><input name="max" inputmode="numeric" placeholder="no limit"></div>
+            <div class="grow" style="flex-basis:120px"><label>Oldest bill (days)</label><input name="days" inputmode="numeric" placeholder="any age"></div>
+            <div class="grow" style="flex-basis:120px"><label>Only for (days)</label><input name="valid" inputmode="numeric" placeholder="permanent"></div>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Set own limit</button>
+            ${c.limit_source === 'customer' ? '<button class="ghost" type="button" data-x="remove">Use type limit</button>' : ''}
+          </div>
+          <div data-m></div>
+        </form></div>` : ''}
+    </div>`;
+    $('cuEdit').scrollIntoView({ behavior: 'smooth' });
+    $('cuEdit').querySelector('[data-x=close]').onclick = () => { $('cuEdit').innerHTML = ''; };
+    $('cuForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const body = Object.fromEntries(f.entries());
+      body.isActive = f.get('isActive') === 'on';
+      if (c) body.id = c.id;
+      try {
+        await api('POST', '/customers', body);
+        $('cuEdit').innerHTML = '';
+        msg($('cuMsg'), 'Saved. Tablets get it at their next sync.', true);
+        meta = null; loadCustomers();
+      } catch (err) { msg(e.target.querySelector('[data-m]'), err.message); }
+    };
+    if (c) {
+      $('cuLimit').onsubmit = async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const blank = (k) => (String(f.get(k) || '').trim() === '' ? null : Number(f.get(k)));
+        try {
+          await api('POST', '/credit-limits', { customerId: c.id, maxOutstanding: blank('max'), maxDays: blank('days'), validDays: blank('valid') });
+          $('cuEdit').innerHTML = ''; msg($('cuMsg'), 'Limit saved.', true); loadCustomers();
+        } catch (err) { msg(e.target.querySelector('[data-m]'), err.message); }
+      };
+      const rm = $('cuEdit').querySelector('[data-x=remove]');
+      if (rm) rm.onclick = async () => {
+        try { await api('POST', '/credit-limits', { customerId: c.id, remove: true }); $('cuEdit').innerHTML = ''; loadCustomers(); }
+        catch (err) { msg($('cuLimit').querySelector('[data-m]'), err.message); }
+      };
+    }
+  }
+
+  // --------------------------------------------------------------- limits
+  async function loadLimits() {
+    try {
+      const m = await getMeta(true);
+      msg($('liMsg'), '');
+      $('liList').innerHTML = m.categories.map((c) => `
+        <form class="card" data-cat="${esc(c.id)}">
+          <div class="row"><b class="grow" style="font-size:16px">${esc(c.name)}</b><span class="muted">${c.customers} customers · ${esc(c.default_level)} rates</span></div>
+          <div class="muted">Now: ${c.limit_id ? limitText(c.max_outstanding, c.max_days, c.valid_to) : 'not set, so every credit bill needs approval'}</div>
+          <div class="row">
+            <div class="grow" style="flex-basis:130px"><label>Amount (₹)</label><input name="max" inputmode="numeric" value="${c.max_outstanding ?? ''}" placeholder="no limit"></div>
+            <div class="grow" style="flex-basis:130px"><label>Oldest bill (days)</label><input name="days" inputmode="numeric" value="${c.max_days ?? ''}" placeholder="any age"></div>
+          </div>
+          <div class="actions"><button class="primary" type="submit">Save ${esc(c.name)} limit</button></div>
+          <div data-m></div>
+        </form>`).join('');
+    } catch (err) { msg($('liMsg'), err.message); }
+  }
+  $('liList').onsubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target; const f = new FormData(form);
+    const blank = (k) => (String(f.get(k) || '').trim() === '' ? null : Number(f.get(k)));
+    try {
+      await api('POST', '/credit-limits', { categoryId: form.dataset.cat, maxOutstanding: blank('max'), maxDays: blank('days') });
+      msg(form.querySelector('[data-m]'), 'Saved. Tablets get it at their next sync.', true);
+      meta = null;
+    } catch (err) { msg(form.querySelector('[data-m]'), err.message); }
+  };
+
   // ---------------------------------------------------------------- start
   async function start() {
     try {
       me = await api('GET', '/auth/me');
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
+    const can = (p) => (me.permissions || []).includes('*') || (me.permissions || []).includes(p);
+    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', limits: 'credit.limit.set', code: 'credit.approve' };
+    document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !can(need[b.dataset.tab])));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
     loadApprovals();

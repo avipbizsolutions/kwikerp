@@ -9,6 +9,7 @@ import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
 import { config } from './config';
 import { Db } from './db';
+import { CustomersController } from './customers';
 import { ReportsController } from './reports';
 import { SyncController } from './sync';
 
@@ -35,7 +36,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, ReportsController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, CustomersController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

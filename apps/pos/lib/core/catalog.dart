@@ -179,7 +179,11 @@ class Catalog {
 
     Map<String, dynamic>? pick(bool Function(Map<String, dynamic>) f) {
       final list = _limits.where((l) => f(l) && valid(l)).toList()
-        ..sort((a, b) => (b['valid_from'] as String).compareTo(a['valid_from'] as String));
+        ..sort((a, b) {
+          final byFrom = (b['valid_from'] as String).compareTo(a['valid_from'] as String);
+          // Same start day: the one set last wins (matches the server's view).
+          return byFrom != 0 ? byFrom : (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString());
+        });
       return list.isEmpty ? null : list.first;
     }
 
