@@ -85,4 +85,76 @@ export class ReportsController {
       return { from: f, to: t, total, outlets, topItems };
     });
   }
+
+  /**
+   * Day-end report for one outlet and day: shifts and cash, payment modes,
+   * GST by rate, items sold, credit bills and cancellations.
+   */
+  @Get('dayend')
+  @Needs('report.all')
+  dayEnd(@Req() req: any, @Query('date') date?: string, @Query('location') location?: string) {
+    const s: Session = req.session;
+    const d = date ?? todayIst();
+    if (!isDate(d)) throw new BadRequestException('date must be YYYY-MM-DD');
+    if (!location) throw new BadRequestException('location is required');
+    return this.db.tx(s.tenantId, async (c) => {
+      const loc = (await c.query(
+        'SELECT id, code, name FROM location WHERE upper(code) = upper($1) AND deleted_at IS NULL', [location])).rows[0];
+      if (!loc) throw new BadRequestException('Unknown outlet');
+      const args = [loc.id, d];
+      const q = async (sql: string) => (await c.query(sql, args)).rows;
+      const finalInv = `si.location_id = $1 AND si.doc_date = $2 AND si.status = 'final' AND si.doc_type = 'INV'
+                        AND si.deleted_at IS NULL`;
+
+      const shifts = await q(
+        `SELECT sh.id, u.name AS cashier, dv.code AS tablet, sh.opened_at, sh.closed_at,
+                sh.opening_cash::float AS opening_cash, sh.expected_cash::float AS expected_cash,
+                sh.counted_cash::float AS counted_cash,
+                (sh.counted_cash - sh.expected_cash)::float AS difference, sh.note,
+                (SELECT coalesce(sum(r.amount), 0)::float FROM receipt r
+                  WHERE r.shift_id = sh.id AND r.mode = 'cash' AND r.status = 'final' AND r.deleted_at IS NULL) AS cash_sales
+           FROM shift sh JOIN app_user u ON u.id = sh.user_id JOIN device dv ON dv.id = sh.device_id
+          WHERE sh.location_id = $1 AND sh.deleted_at IS NULL
+            AND (sh.opened_at AT TIME ZONE 'Asia/Kolkata')::date = $2
+          ORDER BY sh.opened_at`);
+      const modes = await q(
+        `SELECT r.mode, count(*)::int AS n, sum(r.amount)::float AS amount
+           FROM receipt r WHERE r.location_id = $1 AND r.doc_date = $2 AND r.status = 'final' AND r.deleted_at IS NULL
+          GROUP BY r.mode ORDER BY r.mode`);
+      const totals = (await q(
+        `SELECT count(*)::int AS bills, coalesce(sum(si.total), 0)::float AS sales,
+                coalesce(sum(si.taxable), 0)::float AS taxable, coalesce(sum(si.cgst), 0)::float AS cgst,
+                coalesce(sum(si.sgst), 0)::float AS sgst, coalesce(sum(si.igst), 0)::float AS igst,
+                coalesce(sum(si.round_off), 0)::float AS round_off, coalesce(sum(si.balance), 0)::float AS credit,
+                min(si.doc_no) AS first_bill, max(si.doc_no) AS last_bill
+           FROM sales_invoice si WHERE ${finalInv}`))[0];
+      const gst = await q(
+        `SELECT sl.gst_rate::float AS rate, sum(sl.taxable)::float AS taxable, sum(sl.cgst)::float AS cgst,
+                sum(sl.sgst)::float AS sgst, sum(sl.igst)::float AS igst, sum(sl.amount)::float AS amount
+           FROM sales_invoice_line sl JOIN sales_invoice si ON si.id = sl.invoice_id
+          WHERE ${finalInv} AND sl.deleted_at IS NULL GROUP BY sl.gst_rate ORDER BY sl.gst_rate`);
+      const items = await q(
+        `SELECT i.code, i.name, i.pack_size, u.code AS unit, sum(sl.qty * sl.factor)::float AS qty,
+                sum(sl.amount)::float AS amount
+           FROM sales_invoice_line sl JOIN sales_invoice si ON si.id = sl.invoice_id
+           JOIN item i ON i.id = sl.item_id JOIN unit u ON u.id = i.base_unit_id
+          WHERE ${finalInv} AND sl.deleted_at IS NULL
+          GROUP BY i.code, i.name, i.pack_size, u.code ORDER BY amount DESC`);
+      const credit = await q(
+        `SELECT si.doc_no, cu.name AS customer, si.total::float AS total, si.balance::float AS balance
+           FROM sales_invoice si JOIN customer cu ON cu.id = si.customer_id
+          WHERE ${finalInv} AND si.balance > 0 ORDER BY si.doc_no`);
+      const cancelled = await q(
+        `SELECT si.doc_no, si.total::float AS total, si.cancel_reason, u.name AS cancelled_by
+           FROM sales_invoice si LEFT JOIN app_user u ON u.id = si.cancelled_by
+          WHERE si.location_id = $1 AND si.doc_date = $2 AND si.status = 'cancelled' AND si.deleted_at IS NULL
+          ORDER BY si.doc_no`);
+      const waiting = await q(
+        `SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS amount FROM sales_invoice si
+          WHERE si.location_id = $1 AND si.doc_date = $2 AND si.status = 'pending_approval' AND si.deleted_at IS NULL`);
+      return { date: d, outlet: { code: loc.code, name: loc.name }, totals, modes, shifts, gst, items, credit,
+        cancelled, waitingApproval: waiting[0] };
+    });
+  }
 }
+

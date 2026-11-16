@@ -45,7 +45,7 @@
   .tile b { display: block; font-size: 20px; color: var(--navy); font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 110px; }
   th { font-size: 12px; color: var(--muted); font-weight: 600; }
   .scroll { overflow-x: auto; }
   .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px 12px; margin-top: 8px; font-size: 14px; color: var(--muted); }
@@ -53,6 +53,10 @@
   .code { font-size: 44px; font-weight: 800; letter-spacing: 6px; color: var(--navy); text-align: center; padding: 10px; font-variant-numeric: tabular-nums; }
   .login { max-width: 380px; margin: 8vh auto; }
   .hidden { display: none !important; }
+  @media print {
+    header, nav, #tab-sales > .card:first-child, .noprint { display: none !important; }
+    body { background: #fff; } .card { border: 0; padding: 0; } main { padding: 0; }
+  }
   .inline { background: var(--ground); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
 </style>
 </head>
@@ -109,6 +113,7 @@
       </div>
       <div id="salesMsg"></div>
       <div id="salesOut"></div>
+      <div id="dayEnd" class="hidden"></div>
     </div>
 
     <div id="tab-customers" class="hidden">
@@ -294,6 +299,7 @@
   async function loadSales() {
     if (!$('from').value) setRange('today');
     msg($('salesMsg'), '');
+    $('dayEnd').classList.add('hidden'); $('salesOut').classList.remove('hidden');
     try {
       const r = await api('GET', `/reports/sales?from=${$('from').value}&to=${$('to').value}`);
       const t = r.total;
@@ -306,6 +312,7 @@
             <span>Card <b>${inr(o.card)}</b></span><span>Credit <b>${inr(o.credit)}</b></span>
           </div>
           ${o.pending_approvals ? `<div class="msg err" style="margin-bottom:0">${o.pending_approvals} bill(s) waiting for approval</div>` : ''}
+          ${r.from === r.to ? `<div class="actions"><button class="ghost" type="button" data-dayend="${esc(o.code)}">Day-end report</button></div>` : ''}
         </div>`).join('');
       $('salesOut').innerHTML = `
         <div class="tiles">
@@ -325,6 +332,58 @@
     } catch (err) { msg($('salesMsg'), err.message); }
   }
 
+
+  // ------------------------------------------------------------- day end
+  $('salesOut').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dayend]'); if (b) showDayEnd(b.dataset.dayend, $('from').value);
+  });
+  async function showDayEnd(code, date) {
+    try {
+      const r = await api('GET', `/reports/dayend?date=${date}&location=${encodeURIComponent(code)}`);
+      const t = r.totals;
+      const money2 = (v) => inr(v, true);
+      const table = (head, rows, empty) => rows.length
+        ? `<div class="scroll"><table><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr>${rows.join('')}</table></div>` : `<div class="muted">${empty}</div>`;
+      const tm = (x) => x ? new Date(x).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '—';
+      $('salesOut').classList.add('hidden');
+      const el = $('dayEnd'); el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="actions noprint"><button class="ghost" type="button" id="deBack">← Back to all outlets</button>
+          <button class="primary" type="button" onclick="window.print()">Print</button></div>
+        <div class="card">
+          <div class="row"><div class="grow"><b style="font-size:18px">${esc(r.outlet.name)}</b><br>
+            <span class="muted">Day-end report · ${new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+            <div class="big">${inr(t.sales)}</div></div>
+          <div class="split">
+            <span>Bills <b>${t.bills}</b></span><span>On credit <b>${inr(t.credit)}</b></span>
+            <span>First <b>${esc(t.first_bill || '—')}</b></span><span>Last <b>${esc(t.last_bill || '—')}</b></span>
+          </div>
+          ${r.waitingApproval.n ? `<div class="msg err">${r.waitingApproval.n} bill(s) for ${inr(r.waitingApproval.amount)} still waiting for approval; not included.</div>` : ''}
+        </div>
+        <div class="card"><b>Payments received</b>
+          ${table(['Mode', 'Count', 'Amount'], r.modes.map((m) => `<tr><td>${esc(m.mode.toUpperCase())}</td><td>${m.n}</td><td>${money2(m.amount)}</td></tr>`), 'No payments')}</div>
+        <div class="card"><b>Shifts and cash</b>
+          ${table(['Cashier', 'Time', 'Opening', 'Cash sales', 'Expected', 'Counted', 'Short / excess'],
+            r.shifts.map((x) => `<tr><td>${esc(x.cashier)} · ${esc(x.tablet)}${x.note ? `<br><span class="muted">${esc(x.note)}</span>` : ''}</td>
+              <td>${tm(x.opened_at)}–${x.closed_at ? tm(x.closed_at) : 'open'}</td><td>${money2(x.opening_cash)}</td><td>${money2(x.cash_sales)}</td>
+              <td>${x.expected_cash == null ? '—' : money2(x.expected_cash)}</td><td>${x.counted_cash == null ? '—' : money2(x.counted_cash)}</td>
+              <td style="color:${(x.difference || 0) < 0 ? 'var(--red)' : 'inherit'}">${x.difference == null ? '—' : money2(x.difference)}</td></tr>`), 'No shifts')}</div>
+        <div class="card"><b>GST summary</b>
+          ${table(['Rate', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total'], [
+            ...r.gst.map((g) => `<tr><td>${g.rate}%</td><td>${money2(g.taxable)}</td><td>${money2(g.cgst)}</td><td>${money2(g.sgst)}</td><td>${money2(g.igst)}</td><td>${money2(g.amount)}</td></tr>`),
+            `<tr><td><b>Total</b></td><td><b>${money2(t.taxable)}</b></td><td><b>${money2(t.cgst)}</b></td><td><b>${money2(t.sgst)}</b></td><td><b>${money2(t.igst)}</b></td><td><b>${money2(t.sales - t.round_off)}</b></td></tr>`,
+            `<tr><td colspan="5">Round off</td><td>${money2(t.round_off)}</td></tr>`], 'No sales')}
+          <p class="muted">GST rates are provisional until your accountant confirms them.</p></div>
+        <div class="card"><b>Credit bills</b>
+          ${table(['Bill', 'Customer', 'Bill amount', 'On credit'], r.credit.map((x) => `<tr><td>${esc(x.doc_no)}</td><td>${esc(x.customer)}</td><td>${money2(x.total)}</td><td>${money2(x.balance)}</td></tr>`), 'No credit bills')}</div>
+        <div class="card"><b>Cancelled bills</b>
+          ${table(['Bill', 'Amount', 'Reason', 'Approved by'], r.cancelled.map((x) => `<tr><td>${esc(x.doc_no)}</td><td>${money2(x.total)}</td><td>${esc(x.cancel_reason)}</td><td>${esc(x.cancelled_by)}</td></tr>`), 'None')}</div>
+        <div class="card"><b>Items sold</b>
+          ${table(['Item', 'Qty', 'Amount'], r.items.map((i) => `<tr><td>${esc(i.name)}${i.pack_size ? ' ' + esc(i.pack_size) : ''}</td><td>${Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 3 })} ${esc(i.unit.toLowerCase())}</td><td>${money2(i.amount)}</td></tr>`), 'No sales')}</div>`;
+      $('deBack').onclick = () => { el.classList.add('hidden'); $('salesOut').classList.remove('hidden'); };
+      el.scrollIntoView();
+    } catch (err) { msg($('salesMsg'), err.message); }
+  }
   // --------------------------------------------------------- offline code
   $('codeForm').onsubmit = async (e) => {
     e.preventDefault();

@@ -326,3 +326,13 @@ test('tablets can ask for the newest app build', async () => {
   assert.equal(typeof r.body.versionCode, 'number');
 });
 
+test('day-end report for an outlet', async () => {
+  const r = await call('GET', '/reports/dayend?date=2026-11-16&location=dd3', ownerToken);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.outlet.code, 'DD3');
+  for (const k of ['totals', 'modes', 'shifts', 'gst', 'items', 'credit', 'cancelled']) assert.ok(k in r.body, k);
+  assert.ok(r.body.cancelled.some((x: any) => x.cancel_reason === 'Wrong item' && x.cancelled_by === 'Test Owner'));
+  assert.equal((await call('GET', '/reports/dayend?date=2026-11-16', ownerToken)).status, 400);
+  assert.equal((await call('GET', '/reports/dayend?date=2026-11-16&location=DD3', cashierToken)).status, 403);
+});
+
