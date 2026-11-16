@@ -95,6 +95,7 @@
     <button data-tab="customers">Customers</button>
     <button data-tab="types">Customer types</button>
     <button data-tab="rates">Rates</button>
+    <button data-tab="items">Items</button>
     <button data-tab="tally">Tally</button>
     <button data-tab="users">Users</button>
     <button data-tab="receipt">Receipt</button>
@@ -295,6 +296,27 @@
       </div>
     </div>
 
+    <div id="tab-items" class="hidden">
+      <div class="card">
+        <div class="row" style="align-items:flex-end">
+          <div class="grow" style="flex-basis:260px"><b style="font-size:16px">Item photos</b>
+            <div class="muted" id="phCount">Company photos, used on every tablet. A tablet can change its own (that tablet only).</div></div>
+          <div style="flex:0 0 190px"><label for="phCat">Item group</label><select id="phCat"></select></div>
+          <div style="flex:0 0 160px"><label for="phShow">Show</label><select id="phShow"><option value="">All items</option><option value="none">Without a photo</option></select></div>
+        </div>
+        <div class="actions">
+          <label class="primary" style="display:inline-flex;align-items:center;justify-content:center;flex:1 1 200px;font-weight:600;border-radius:8px;padding:11px 14px;cursor:pointer;background:var(--blue);color:#fff;margin:0">
+            Upload many photos…<input type="file" id="phMany" accept="image/*" multiple style="display:none"></label>
+          <label style="display:flex;gap:8px;align-items:center;flex:1 1 200px;margin:0;color:var(--ink);font-weight:600"><input type="checkbox" id="phOn" style="width:auto"> Show photos on tablets</label>
+        </div>
+        <p class="muted" style="margin-bottom:0">Upload many: name each file by item code (2.jpg for Milk Gold H, 66.jpg for Paneer 180gm).
+          Photos are cropped square and made small (about 20 KB), so tablets download them quickly and keep them offline.</p>
+      </div>
+      <div id="phMsg"></div>
+      <div id="phGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px"></div>
+      <input type="file" id="phOne" accept="image/*" style="display:none">
+    </div>
+
     <div id="tab-code" class="hidden">
       <div class="card">
         <div class="muted">For an outlet with no internet. The cashier reads out what the tablet's approval screen shows.</div>
@@ -367,12 +389,13 @@
   // ----------------------------------------------------------------- tabs
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'customers', 'types', 'rates', 'tally', 'users', 'receipt', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    ['approvals', 'sales', 'customers', 'types', 'rates', 'items', 'tally', 'users', 'receipt', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
     document.querySelector('main').classList.toggle('wide', b.dataset.tab === 'rates');
     if (b.dataset.tab === 'sales') loadSales();
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'types') loadTypes();
     if (b.dataset.tab === 'rates') loadRates();
+    if (b.dataset.tab === 'items') loadPhotos();
     if (b.dataset.tab === 'tally') openTally();
     if (b.dataset.tab === 'users') loadUsers();
     if (b.dataset.tab === 'receipt') loadReceipt();
@@ -1124,6 +1147,94 @@
       };
     } catch (err) { msg($('rtMsg'), err.message || String(err)); }
   };
+
+  // ----------------------------------------------------------- item photos
+  let ph = null; const phUrls = new Map(); // item id -> object URL of its photo
+  async function loadPhotos() {
+    try {
+      ph = await api('GET', '/items/photos');
+      const cats = [...new Map(ph.map((i) => [i.category_id || '', i.category || 'No group'])).entries()];
+      const keep = $('phCat').value;
+      $('phCat').innerHTML = cats.map(([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`).join('') + '<option value="*">All groups</option>';
+      if (keep) $('phCat').value = keep;
+      const st = await api('GET', '/settings/receipt').catch(() => null);
+      $('phOn').checked = st ? st.receipt.showPhotos !== false : true;
+      $('phOn').disabled = !st;
+      drawPhotos();
+    } catch (err) { msg($('phMsg'), err.message); }
+  }
+  $('phCat').onchange = drawPhotos; $('phShow').onchange = drawPhotos;
+  $('phOn').onchange = async () => {
+    try { await api('POST', '/settings/receipt', { showPhotos: $('phOn').checked }); msg($('phMsg'), 'Saved. Tablets follow at their next sync.', true); }
+    catch (err) { msg($('phMsg'), err.message); }
+  };
+  async function photoUrl(i) {
+    const key = i.id + ':' + i.image_version;
+    if (phUrls.has(key)) return phUrls.get(key);
+    const r = await fetch(`/api/items/${i.id}/photo`, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) return null;
+    const u = URL.createObjectURL(await r.blob()); phUrls.set(key, u); return u;
+  }
+  function drawPhotos() {
+    if (!ph) return;
+    const with_ = ph.filter((i) => i.image_version).length;
+    $('phCount').textContent = `Company photos, used on every tablet. A tablet can change its own (that tablet only). ${with_} of ${ph.length} items have a photo.`;
+    const cat = $('phCat').value;
+    const list = ph.filter((i) => (cat === '*' || (i.category_id || '') === cat) && ($('phShow').value !== 'none' || !i.image_version));
+    $('phGrid').innerHTML = list.map((i) => `<div class="card" style="padding:0;overflow:hidden;margin:0">
+      <div data-img="${esc(i.id)}" style="aspect-ratio:1;background:${i.image_version ? '#dfe7f0' : '#f6f8fa'};display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;font-weight:600">${i.image_version ? 'Loading…' : 'No photo yet'}</div>
+      <div style="padding:8px 10px"><b style="font-size:14px">${esc(i.name)}${i.pack_size ? ' ' + esc(i.pack_size) : ''}</b><div class="muted">Code ${esc(i.code)}</div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="ghost" type="button" data-up="${esc(i.id)}" style="flex:1;padding:7px">${i.image_version ? 'Replace' : 'Add photo'}</button>
+          ${i.image_version ? `<button class="danger" type="button" data-rm="${esc(i.id)}" aria-label="Remove photo of ${esc(i.name)}" style="padding:7px 10px">✕</button>` : ''}
+        </div></div></div>`).join('') || '<div class="card muted">No items here.</div>';
+    for (const i of list.filter((x) => x.image_version)) {
+      photoUrl(i).then((u) => { const el = $('phGrid').querySelector(`[data-img="${i.id}"]`); if (el && u) el.innerHTML = `<img src="${u}" alt="" style="width:100%;height:100%;object-fit:cover">`; });
+    }
+  }
+  // Square crop, 320 px, JPEG: about 15-30 KB
+  async function squareJpeg(file) {
+    const url = URL.createObjectURL(file);
+    const im = new Image(); im.src = url; await im.decode(); URL.revokeObjectURL(url);
+    const side = Math.min(im.width, im.height); const N = 320;
+    const cv = document.createElement('canvas'); cv.width = N; cv.height = N;
+    const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, N, N);
+    ctx.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, N, N);
+    const blob = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.8));
+    const buf = new Uint8Array(await blob.arrayBuffer()); let bin = '';
+    for (let k = 0; k < buf.length; k += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(k, k + 0x8000));
+    return btoa(bin);
+  }
+  let phTarget = null;
+  $('phGrid').onclick = async (e) => {
+    const up = e.target.closest('[data-up]'); const rm = e.target.closest('[data-rm]');
+    if (up) { phTarget = up.dataset.up; $('phOne').value = ''; $('phOne').click(); }
+    if (rm && confirm('Remove this photo? Tablets go back to the name only (unless a tablet set its own).')) {
+      try { await api('POST', `/items/${rm.dataset.rm}/photo/remove`); await loadPhotos(); } catch (err) { msg($('phMsg'), err.message); }
+    }
+  };
+  $('phOne').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f || !phTarget) return;
+    try { await api('POST', `/items/${phTarget}/photo`, { data: await squareJpeg(f) }); await loadPhotos(); msg($('phMsg'), 'Photo saved. Tablets get it at their next sync.', true); }
+    catch (err) { msg($('phMsg'), err.message); }
+  };
+  $('phMany').onchange = async (e) => {
+    const files = [...e.target.files]; e.target.value = '';
+    if (!files.length) return;
+    if (!ph) await loadPhotos();
+    const byCode = new Map(ph.map((i) => [String(i.code).trim().toLowerCase(), i]));
+    let ok = 0; const skipped = [];
+    for (const [n, f] of files.entries()) {
+      const code = f.name.replace(/\.[^.]+$/, '').trim().toLowerCase();
+      const it = byCode.get(code);
+      if (!it) { skipped.push(f.name); continue; }
+      msg($('phMsg'), `Uploading ${n + 1} of ${files.length}…`, true);
+      try { await api('POST', `/items/${it.id}/photo`, { data: await squareJpeg(f) }); ok++; }
+      catch (err) { skipped.push(`${f.name} (${err.message})`); }
+    }
+    await loadPhotos();
+    msg($('phMsg'), `${ok} photo(s) saved.${skipped.length ? ' Not matched to an item code: ' + skipped.slice(0, 15).join(', ') + (skipped.length > 15 ? '…' : '') : ''}`, !skipped.length);
+  };
   // --------------------------------------------------------- offline code
   $('codeForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -1294,7 +1405,7 @@
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
     const can = (p) => (me.permissions || []).includes('*') || (me.permissions || []).includes(p);
-    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', types: 'rates.manage', rates: 'rates.manage', tally: 'accounts.export', users: 'users.manage', receipt: 'settings.manage', code: 'credit.approve' };
+    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', types: 'rates.manage', rates: 'rates.manage', items: 'rates.manage', tally: 'accounts.export', users: 'users.manage', receipt: 'settings.manage', code: 'credit.approve' };
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !can(need[b.dataset.tab])));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');

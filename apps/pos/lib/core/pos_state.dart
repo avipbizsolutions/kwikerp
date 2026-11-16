@@ -9,6 +9,7 @@ import 'billing.dart';
 import 'catalog.dart';
 import 'local_db.dart';
 import 'offline_code.dart';
+import 'photos.dart';
 import 'receipt.dart';
 import 'sync_service.dart';
 
@@ -201,7 +202,12 @@ class PosState extends ChangeNotifier {
     catalog = await Catalog.load(db, device?.locationId);
     await refreshBestSellers();
     notifyListeners();
+    // Company product photos, in the background (they show as they arrive)
+    if (serverUrl != null && token != null) photos.refresh(catalog!, Api(serverUrl!, token: token));
   }
+
+  /// Product photos on this tablet.
+  late final PhotoStore photos = PhotoStore(db);
 
   /// Items this tablet sold most often in the last 30 days (by number of bills).
   List<String> bestSellers = [];

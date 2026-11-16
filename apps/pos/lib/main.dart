@@ -22,6 +22,7 @@ Future<void> main() async {
   ]);
   final db = await LocalDb.open();
   final state = PosState(db);
+  await state.photos.load(); // before init, so saved photos are not downloaded again
   await state.init();
   final printer = PrinterService(db);
   await printer.load();
@@ -29,6 +30,7 @@ Future<void> main() async {
     providers: [
       ChangeNotifierProvider.value(value: state),
       ChangeNotifierProvider.value(value: printer),
+      ChangeNotifierProvider.value(value: state.photos),
     ],
     child: const KwikPosApp(),
   ));

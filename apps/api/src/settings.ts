@@ -17,6 +17,7 @@ export interface ReceiptSettings {
   showCounts: boolean;      // total items and quantity
   splitGst: boolean;        // CGST and SGST lines instead of one GST line
   showSavings: boolean;     // saving against MRP when billed below it
+  showPhotos: boolean;      // product photos on tablet tiles (company-wide switch)
   logo: { width: number; height: number; data: string } | null; // 1-bit rows, base64
   // Blank paper, in printer lines (about 4 mm each), 0 to 10
   billTop: number;
@@ -35,6 +36,7 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
   showCounts: true,
   splitGst: true,
   showSavings: true,
+  showPhotos: true,
   logo: null,
   billTop: 0,
   billBottom: 4,
@@ -47,7 +49,7 @@ export async function receiptSettings(c: any): Promise<{ value: ReceiptSettings;
   return { value: { ...DEFAULT_RECEIPT, ...(row?.value ?? {}) }, version: row ? new Date(row.updated_at).toISOString() : 'default' };
 }
 
-const BOOL_KEYS = ['showTime', 'showCustomer', 'itemTable', 'showCounts', 'splitGst', 'showSavings'] as const;
+const BOOL_KEYS = ['showTime', 'showCustomer', 'itemTable', 'showCounts', 'splitGst', 'showSavings', 'showPhotos'] as const;
 
 interface BusinessBody {
   company?: { gstin?: string; phone?: string; email?: string; address?: string; fssai?: string };

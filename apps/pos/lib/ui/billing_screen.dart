@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../core/billing.dart';
 import '../core/catalog.dart';
+import '../core/photos.dart';
 import '../core/pos_state.dart';
 import '../core/printer.dart';
 import 'bills_screen.dart';
@@ -65,6 +67,8 @@ class _BillingScreenState extends State<BillingScreen> {
     final s = context.watch<PosState>();
     final cat = s.catalog!;
     final best = s.bestSellers;
+    final photos = context.watch<PhotoStore>();
+    final showPhotos = cat.receipt['showPhotos'] != false && !photos.hidden;
     final categories = cat.categories.where((c) => cat.items.values.any((i) => i.onPos && i.categoryId == c.id)).toList();
     _categoryId ??= best.isNotEmpty ? _bestSellers : (categories.isEmpty ? null : categories.first.id);
     if (_categoryId == _bestSellers && best.isEmpty) _categoryId = categories.isEmpty ? null : categories.first.id;
@@ -162,7 +166,7 @@ class _BillingScreenState extends State<BillingScreen> {
                               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: (box.maxWidth / 112).floor().clamp(3, 8),
-                                  mainAxisExtent: 100,
+                                  mainAxisExtent: showPhotos ? 160 : 100,
                                   crossAxisSpacing: 6,
                                   mainAxisSpacing: 6),
                               itemCount: items.length,
@@ -405,6 +409,9 @@ class _ItemTile extends StatelessWidget {
     final price = cat.price(item.id, item.baseUnitId, s.bill.levelId);
     final line = s.bill.lineFor(item.id, item.baseUnitId);
     final picked = line != null;
+    final photos = context.watch<PhotoStore>();
+    final showPhotos = cat.receipt['showPhotos'] != false && !photos.hidden;
+    final photo = showPhotos ? photos.photoFor(item.id) : null;
     return Stack(clipBehavior: Clip.none, children: [
       Positioned.fill(
         child: Material(
@@ -416,21 +423,29 @@ class _ItemTile extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: price == null ? null : () => _tap(context, s, price, line),
-            onLongPress: price == null
-                ? null
-                : () async {
-                    if (item.soldByWeight) return _tap(context, s, price, line);
-                    final q = await _askQty(context, item, line?.qty);
-                    if (q != null) s.addItem(item, q, replace: true);
-                  },
+            onLongPress: () => _itemSheet(context, item, price, line),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (showPhotos)
+                  Expanded(
+                    flex: 5,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: photo == null
+                          ? Container(
+                              color: const Color(0xFFF1F4F7),
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.image_outlined, color: Color(0xFFB4BFCA), size: 28))
+                          : Image.memory(photo, fit: BoxFit.cover, gaplessPlayback: true),
+                    ),
+                  ),
                 Expanded(
+                  flex: 4,
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Text(item.name,
                         textAlign: TextAlign.center,
-                        maxLines: item.packSize.isEmpty ? 3 : 2,
+                        maxLines: showPhotos ? 2 : (item.packSize.isEmpty ? 3 : 2),
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.15)),
                     if (item.packSize.isNotEmpty)
@@ -481,29 +496,6 @@ class _ItemTile extends StatelessWidget {
         child: Text(text,
             style: TextStyle(fontSize: 13, fontWeight: strong ? FontWeight.w800 : FontWeight.w600, color: colour)),
       );
-}
-
-Future<double?> _askQty(BuildContext context, Item item, double? current) {
-  final ctl = TextEditingController(text: current == null ? '' : qtyText(current, false));
-  return showDialog<double>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(item.fullName),
-      content: TextField(
-        controller: ctl,
-        autofocus: true,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-        decoration: const InputDecoration(labelText: 'Quantity'),
-        onSubmitted: (v) => Navigator.pop(ctx, double.tryParse(v) ?? 0),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, double.tryParse(ctl.text) ?? 0), child: const Text('OK')),
-      ],
-    ),
-  );
 }
 
 // ------------------------------------------- bill summary line and details
@@ -770,3 +762,147 @@ Future<void> _printCartKot(BuildContext context) async {
     ));
   }
 }
+
+/// Long press on a tile: quantity (or weight) and the photo on this tablet.
+Future<void> _itemSheet(BuildContext context, Item item, double? price, BillLine? line) async {
+  final s = context.read<PosState>();
+  final photos = context.read<PhotoStore>();
+  final qty = TextEditingController(text: line == null ? '' : qtyText(line.qty, false));
+  Future<void> pick(BuildContext ctx, ImageSource src) async {
+    try {
+      final f = await ImagePicker().pickImage(source: src, maxWidth: 400, maxHeight: 400, imageQuality: 80);
+      if (f == null) return;
+      await photos.setOwn(item.id, await f.readAsBytes());
+    } catch (e) {
+      if (ctx.mounted) showError(ctx, 'Could not get the photo: $e');
+    }
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => ListenableBuilder(
+      listenable: photos,
+      builder: (ctx, _) {
+        final ph = photos.photoFor(item.id);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + MediaQuery.of(ctx).viewInsets.bottom),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: ph == null
+                      ? Container(color: const Color(0xFFF1F4F7), child: const Icon(Icons.image_outlined, color: Kc.muted, size: 36))
+                      : Image.memory(ph, fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(item.fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(
+                      photos.hasOwn(item.id)
+                          ? "Showing this tablet's own photo"
+                          : photos.hasCompany(item.id)
+                              ? 'Showing the company photo'
+                              : 'No photo yet',
+                      style: const TextStyle(color: Kc.muted)),
+                ]),
+              ),
+            ]),
+            if (price != null) ...[
+              const SizedBox(height: 16),
+              if (item.soldByWeight)
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final kg = await askWeight(context, item, price, line?.qty);
+                      if (kg != null) s.addItem(item, kg, replace: true);
+                    },
+                    child: const Text('Set weight'),
+                  ),
+                )
+              else
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: qty,
+                      autofocus: false,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                      decoration: const InputDecoration(labelText: 'Quantity in bill'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 120,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: () {
+                        final q = double.tryParse(qty.text);
+                        if (q != null) s.addItem(item, q, replace: true);
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('OK'),
+                    ),
+                  ),
+                ]),
+            ],
+            const Divider(height: 32),
+            const Text('Photo on this tablet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 60)),
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: const Text('Take a photo'),
+                  onPressed: () => pick(ctx, ImageSource.camera),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 60)),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('From gallery'),
+                  onPressed: () => pick(ctx, ImageSource.gallery),
+                ),
+              ),
+              if (photos.hasOwn(item.id)) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 60)),
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Use company photo'),
+                    onPressed: () => photos.clearOwn(item.id),
+                  ),
+                ),
+              ],
+            ]),
+            const SizedBox(height: 4),
+            const Text('Shows only on this tablet. Head office photos stay as they are.',
+                style: TextStyle(color: Kc.muted, fontSize: 13)),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Hide photos on this tablet'),
+              subtitle: const Text('Names only, more items on screen'),
+              value: photos.hidden,
+              onChanged: photos.setHidden,
+            ),
+          ]),
+        );
+      },
+    ),
+  );
+}
+

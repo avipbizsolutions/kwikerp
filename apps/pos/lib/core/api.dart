@@ -86,4 +86,12 @@ class Api {
     final r = await http.post(_u(path), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
     return _decode(r);
   }
+
+  /// Raw bytes (product photos). Null when there is none.
+  Future<List<int>?> getBytes(String path) async {
+    final r = await http.get(_u(path), headers: _headers).timeout(const Duration(seconds: 30));
+    if (r.statusCode == 404) return null;
+    if (r.statusCode < 200 || r.statusCode >= 300) throw ApiException(r.statusCode, 'Photo download failed');
+    return r.bodyBytes;
+  }
 }

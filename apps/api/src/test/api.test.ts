@@ -492,3 +492,21 @@ test('customer types and the rate chart (owners and managers only)', async () =>
   assert.equal((await call('GET', '/customer-types', cashierToken)).status, 403);
 });
 
+test('product photos: head office uploads, tablets download', async () => {
+  const items = (await call('GET', '/items/photos', ownerToken)).body;
+  const it = items.find((i: any) => i.code === '2');
+  // a 1x1 JPEG
+  const jpg = '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
+  const up = await call('POST', `/items/${it.id}/photo`, ownerToken, { data: jpg });
+  assert.equal(up.status, 201, JSON.stringify(up.body));
+  assert.equal((await call('POST', `/items/${it.id}/photo`, ownerToken, { data: Buffer.from('hello').toString('base64') })).status, 400);
+  assert.equal((await call('POST', `/items/${it.id}/photo`, cashierToken, { data: jpg })).status, 403);
+  const pull = (await call('GET', '/sync/pull?since=0', cashierToken)).body;
+  assert.equal(pull.tables.item.find((i: any) => i.id === it.id).image_version, up.body.version);
+  const img = await fetch(`${base}/items/${it.id}/photo`, { headers: { authorization: `Bearer ${cashierToken}` } });
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get('content-type'), 'image/jpeg');
+  await call('POST', `/items/${it.id}/photo/remove`, ownerToken);
+  assert.equal((await fetch(`${base}/items/${it.id}/photo`, { headers: { authorization: `Bearer ${cashierToken}` } })).status, 404);
+});
+
