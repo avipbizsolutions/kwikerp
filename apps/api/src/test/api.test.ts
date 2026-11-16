@@ -440,3 +440,51 @@ test('receipt layout is set at head office and reaches the tablet once', async (
   await call('POST', '/settings/receipt', ownerToken, { logo: null, showSavings: true });
 });
 
+test('customer types and the rate chart (owners and managers only)', async () => {
+  const t = (await call('GET', '/customer-types', ownerToken)).body;
+  const retail = t.levels.find((l: any) => l.code === 'RETAILER');
+  const code = `T${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const add = await call('POST', '/customer-types', ownerToken,
+    { code, name: `Type ${code}`, priceLevelId: retail.id, creditAllowed: true, maxOutstanding: 3000, maxDays: 10 });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  let mine = (await call('GET', '/customer-types', ownerToken)).body.types.find((x: any) => x.id === add.body.id);
+  assert.equal(mine.max_outstanding, 3000);
+  assert.equal(mine.max_days, 10);
+  assert.equal((await call('POST', '/customer-types', ownerToken,
+    { code, name: 'Other', priceLevelId: retail.id, creditAllowed: true })).status, 400, 'code must be unique');
+  await call('POST', '/customer-types', ownerToken,
+    { id: add.body.id, code, name: `Type ${code}`, priceLevelId: retail.id, creditAllowed: false, isActive: false });
+  mine = (await call('GET', '/customer-types', ownerToken)).body.types.find((x: any) => x.id === add.body.id);
+  assert.equal(mine.is_active, false);
+  assert.equal(mine.max_outstanding, 0, 'no credit = limit 0');
+
+  // Rate chart: change Gold milk retailer rate from tomorrow; trays/boxes follow piece x pack
+  const chart = (await call('GET', '/rates', ownerToken)).body;
+  const tomorrow = new Date(Date.now() + 5.5 * 3600e3 + 864e5).toISOString().slice(0, 10);
+  const dahiTray = chart.items.find((i: any) => i.code === '8');   // Dahi 200g Tray: cups, tray of 6
+  assert.ok(dahiTray.packs);
+  const save = await call('POST', '/rates', ownerToken,
+    { effectiveFrom: tomorrow, changes: [{ itemId: dahiTray.id, levelId: retail.id, price: 27 }] });
+  assert.equal(save.status, 201, JSON.stringify(save.body));
+  assert.ok(save.body.rows >= 2, 'cup and tray');
+  const after = (await call('GET', '/rates', ownerToken)).body.prices
+    .find((p: any) => p.item_id === dahiTray.id && p.price_level_id === retail.id);
+  assert.equal(after.next_price, 27);
+  assert.equal(after.next_from, tomorrow);
+  assert.notEqual(after.price, 27, "today's rate is unchanged");
+  const tray = (await admin.query(
+    `SELECT p.price::float AS price FROM item_price p JOIN unit u ON u.id = p.unit_id
+      WHERE p.item_id = $1 AND p.price_level_id = $2 AND p.valid_from = $3 AND u.code = 'TRAY'`,
+    [dahiTray.id, retail.id, tomorrow])).rows[0];
+  assert.equal(tray.price, 162, '6 x 27');
+  assert.equal((await call('POST', '/rates', ownerToken,
+    { effectiveFrom: '2020-01-01', changes: [{ itemId: dahiTray.id, levelId: retail.id, price: 1 }] })).status, 400);
+
+  const lvl = await call('POST', '/price-levels', ownerToken, { name: `Event ${code}`, copyFromId: retail.id });
+  assert.equal(lvl.status, 201, JSON.stringify(lvl.body));
+  assert.ok((await call('GET', '/rates', ownerToken)).body.prices.some((p: any) => p.price_level_id === lvl.body.id));
+
+  assert.equal((await call('GET', '/rates', cashierToken)).status, 403);
+  assert.equal((await call('GET', '/customer-types', cashierToken)).status, 403);
+});
+

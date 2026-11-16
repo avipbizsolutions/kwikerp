@@ -12,6 +12,7 @@ import { config } from './config';
 import { Db } from './db';
 import { BillsController } from './bills';
 import { CustomersController } from './customers';
+import { RatesController } from './rates';
 import { ReportsController } from './reports';
 import { SettingsController } from './settings';
 import { SyncController } from './sync';
@@ -55,7 +56,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AdminController, SettingsController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AdminController, SettingsController, RatesController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

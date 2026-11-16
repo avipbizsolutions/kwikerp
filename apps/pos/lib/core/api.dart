@@ -75,4 +75,15 @@ class Api {
     final r = await http.get(_u('/download/pos/version'), headers: _headers).timeout(const Duration(seconds: 15));
     return Map<String, dynamic>.from(await _decode(r) as Map);
   }
+
+  /// Head-office screens on the tablet (managers): plain JSON calls.
+  Future<dynamic> getJson(String path) async {
+    final r = await http.get(_u(path), headers: _headers).timeout(const Duration(seconds: 30));
+    return _decode(r);
+  }
+
+  Future<dynamic> postJson(String path, Object body) async {
+    final r = await http.post(_u(path), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+    return _decode(r);
+  }
 }

@@ -7,6 +7,8 @@ import '../core/catalog.dart';
 import '../core/pos_state.dart';
 import '../core/printer.dart';
 import 'bills_screen.dart';
+import 'rates_screen.dart';
+import 'types_screen.dart';
 import 'dialogs.dart';
 import 'shift_screens.dart';
 import 'theme.dart';
@@ -235,7 +237,11 @@ class _TopBar extends StatelessWidget {
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.white),
           onSelected: (v) async {
-            if (v == 'bills') {
+            if (v == 'rates') {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RatesScreen()));
+            } else if (v == 'types') {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomerTypesScreen()));
+            } else if (v == 'bills') {
               await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillsScreen()));
             } else if (v == 'printer') {
               await showPrinterSetup(context);
@@ -250,12 +256,14 @@ class _TopBar extends StatelessWidget {
               s.logout();
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'bills', child: Text('Bills · reprint or cancel')),
-            PopupMenuItem(value: 'printer', child: Text('Printer')),
-            PopupMenuItem(value: 'reprint', child: Text('Reprint last bill')),
-            PopupMenuItem(value: 'close', child: Text('Close shift')),
-            PopupMenuItem(value: 'logout', child: Text('Log out')),
+          itemBuilder: (_) => [
+            if (s.canManageRates) const PopupMenuItem(value: 'rates', child: Text('Rate chart')),
+            if (s.canManageRates) const PopupMenuItem(value: 'types', child: Text('Customer types')),
+            const PopupMenuItem(value: 'bills', child: Text('Bills · reprint or cancel')),
+            const PopupMenuItem(value: 'printer', child: Text('Printer')),
+            const PopupMenuItem(value: 'reprint', child: Text('Reprint last bill')),
+            const PopupMenuItem(value: 'close', child: Text('Close shift')),
+            const PopupMenuItem(value: 'logout', child: Text('Log out')),
           ],
         ),
       ]),

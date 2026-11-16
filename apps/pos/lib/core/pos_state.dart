@@ -543,6 +543,17 @@ class PosState extends ChangeNotifier {
     );
   }
 
+  bool _can(String perm) {
+    final p = (user?['permissions'] as List?)?.cast<String>() ?? const [];
+    return p.contains('*') || p.contains(perm);
+  }
+
+  /// Rate chart and customer types: owners and managers.
+  bool get canManageRates => _can('rates.manage');
+
+  /// Online calls for the manager screens.
+  Api get onlineApi => Api(serverUrl!, token: token);
+
   bool get canCancelBills {
     final p = (user?['permissions'] as List?)?.cast<String>() ?? const [];
     return p.contains('*') || p.contains('bill.cancel');

@@ -166,7 +166,7 @@ class _NewCustomerDialogState extends State<_NewCustomerDialog> {
   @override
   Widget build(BuildContext context) {
     final s = context.read<PosState>();
-    final cats = s.catalog!.customerCategories.values.toList();
+    final cats = s.catalog!.customerCategories.values.where((c) => c['is_active'] != false).toList();
     _categoryId ??= cats.where((c) => c['code'] == 'CONSUMER').firstOrNull?['id'] as String? ??
         (cats.isEmpty ? null : cats.first['id'] as String);
     return AlertDialog(
