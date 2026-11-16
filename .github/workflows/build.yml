@@ -28,7 +28,7 @@ jobs:
       - name: Create database
         run: |
           psql -h localhost -U postgres -c 'CREATE DATABASE kwikerp'
-          for f in db/migrations/*.sql db/seed/0001_troika_setup.sql db/seed/0002_troika_items.sql; do
+          for f in db/migrations/*.sql db/seed/*.sql; do
             psql -h localhost -U postgres -d kwikerp -v ON_ERROR_STOP=1 -q -f "$f"
           done
           psql -h localhost -U postgres -c "CREATE ROLE kwik_api LOGIN PASSWORD 'ci' IN ROLE kwik_app"

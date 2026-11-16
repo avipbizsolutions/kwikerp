@@ -7,7 +7,7 @@ SET search_path = kwik, public;
 CREATE TEMP TABLE stg_item (
   code text, name text, sheet_category text, category_code text, kind text,
   base_unit text, sold_by_weight text, trade_unit text, trade_factor numeric,
-  pack_note text, pack_status text, hsn text, gst_rate numeric, gst_status text,
+  pack_note text, pack_size text, pack_status text, hsn text, gst_rate numeric, gst_status text,
   shelf_life_days int, order_multiple numeric, reorder_level numeric,
   is_active text, show_on_pos text, notes text);
 
@@ -19,10 +19,10 @@ CREATE TEMP TABLE stg_price (
 
 INSERT INTO item (tenant_id, code, name, category_id, kind, base_unit_id, sold_by_weight,
                   hsn, gst_rate, shelf_life_days, order_multiple, reorder_level,
-                  is_active, show_on_pos, pos_sort)
+                  is_active, show_on_pos, pos_sort, pack_size)
 SELECT tn.id, s.code, s.name, ic.id, s.kind, u.id, s.sold_by_weight = 'Y',
        nullif(s.hsn, ''), s.gst_rate, s.shelf_life_days, s.order_multiple, s.reorder_level,
-       s.is_active = 'Y', s.show_on_pos = 'Y', s.code::int
+       s.is_active = 'Y', s.show_on_pos = 'Y', s.code::int, nullif(s.pack_size, '')
   FROM stg_item s
   JOIN tenant tn ON tn.code = 'TROIKA'
   JOIN item_category ic ON ic.tenant_id = tn.id AND ic.code = s.category_code

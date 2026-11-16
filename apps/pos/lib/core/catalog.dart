@@ -15,6 +15,10 @@ class Item {
   String? get hsn => row['hsn'] as String?;
   double get gstRate => _num(row['gst_rate']);
   int get posSort => (row['pos_sort'] as num?)?.toInt() ?? 0;
+  /// e.g. "500 ml" when the name doesn't say it; empty otherwise.
+  String get packSize => (row['pack_size'] as String?)?.trim() ?? '';
+  /// Name with pack size, for receipts and the bill list.
+  String get fullName => packSize.isEmpty ? name : '$name $packSize';
 }
 
 class Category {

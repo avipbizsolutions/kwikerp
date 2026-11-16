@@ -96,7 +96,7 @@ class _BillingScreenState extends State<BillingScreen> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               // ---- category rail
               Container(
-                width: 150,
+                width: 124,
                 color: const Color(0xFFE3E8EE),
                 child: ListView(padding: const EdgeInsets.symmetric(vertical: 6), children: [
                   if (best.isNotEmpty)
@@ -126,9 +126,9 @@ class _BillingScreenState extends State<BillingScreen> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
                     child: SizedBox(
-                      height: 44,
+                      height: 42,
                       child: TextField(
                         controller: _searchCtl,
                         decoration: InputDecoration(
@@ -146,12 +146,18 @@ class _BillingScreenState extends State<BillingScreen> {
                   Expanded(
                     child: items.isEmpty
                         ? const Center(child: Text('No items', style: TextStyle(color: Kc.muted)))
-                        : GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-                            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 170, mainAxisExtent: 112, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                            itemCount: items.length,
-                            itemBuilder: (context, i) => _ItemTile(item: items[i]),
+                        : LayoutBuilder(
+                            // At least 4 tiles a row on a 7-8 inch tablet held upright.
+                            builder: (context, box) => GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: (box.maxWidth / 112).floor().clamp(3, 8),
+                                  mainAxisExtent: 100,
+                                  crossAxisSpacing: 6,
+                                  mainAxisSpacing: 6),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) => _ItemTile(item: items[i]),
+                            ),
                           ),
                   ),
                 ]),
@@ -336,7 +342,7 @@ class _RailButton extends StatelessWidget {
     final bg = selected ? (highlight ?? Kc.navy) : (count > 0 ? Kc.greenBg : Colors.white);
     final fg = selected && highlight == null ? Colors.white : Kc.ink;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
+      padding: const EdgeInsets.fromLTRB(5, 2, 5, 2),
       child: Material(
         color: bg,
         borderRadius: BorderRadius.circular(6),
@@ -344,9 +350,9 @@ class _RailButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Text(count > 0 ? '$label ($count)' : label,
-                style: TextStyle(fontSize: 14, color: fg, fontWeight: count > 0 || selected ? FontWeight.w700 : FontWeight.w500)),
+                style: TextStyle(fontSize: 13, color: fg, fontWeight: count > 0 || selected ? FontWeight.w700 : FontWeight.w500)),
           ),
         ),
       ),
@@ -399,16 +405,18 @@ class _ItemTile extends StatelessWidget {
                     if (q != null) s.addItem(item, q, replace: true);
                   },
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+              padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Expanded(
-                  child: Center(
-                    child: Text(item.name,
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(item.name,
                         textAlign: TextAlign.center,
-                        maxLines: 3,
+                        maxLines: item.packSize.isEmpty ? 3 : 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, height: 1.15)),
-                  ),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.15)),
+                    if (item.packSize.isNotEmpty)
+                      Text(item.packSize, style: const TextStyle(fontSize: 12, color: Kc.muted, fontWeight: FontWeight.w600)),
+                  ]),
                 ),
                 Row(children: [
                   _box(line != null ? qtyText(line.qty, item.soldByWeight) : '0', picked),
@@ -445,14 +453,14 @@ class _ItemTile extends StatelessWidget {
   static String _rate(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   Widget _box(String text, bool strong, {Color colour = Kc.ink}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
         decoration: BoxDecoration(
           color: strong ? Colors.white : null,
           borderRadius: BorderRadius.circular(5),
           border: Border.all(color: strong ? const Color(0xFF2E9E4F) : Kc.line),
         ),
         child: Text(text,
-            style: TextStyle(fontSize: 14, fontWeight: strong ? FontWeight.w800 : FontWeight.w600, color: colour)),
+            style: TextStyle(fontSize: 13, fontWeight: strong ? FontWeight.w800 : FontWeight.w600, color: colour)),
       );
 }
 
@@ -461,7 +469,7 @@ Future<double?> _askQty(BuildContext context, Item item, double? current) {
   return showDialog<double>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(item.name),
+      title: Text(item.fullName),
       content: TextField(
         controller: ctl,
         autofocus: true,
@@ -489,7 +497,7 @@ class _BillLine extends StatelessWidget {
     final s = context.watch<PosState>();
     final bill = s.bill;
     if (bill.isEmpty) return const SizedBox.shrink();
-    final text = bill.lines.map((l) => '${l.item.name} ×${qtyText(l.qty, l.item.soldByWeight)}').join(' · ');
+    final text = bill.lines.map((l) => '${l.item.fullName} ×${qtyText(l.qty, l.item.soldByWeight)}').join(' · ');
     return Material(
       color: Colors.white,
       child: InkWell(
@@ -609,7 +617,7 @@ class _CartLine extends StatelessWidget {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(line.item.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            Text(line.item.fullName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             Text(
                 '${money(line.rate)}${byWeight ? ' per kg' : ' each'} · '
                 '${line.item.gstRate == 0 ? 'GST nil' : 'GST ${line.item.gstRate.toStringAsFixed(0)}%'}',

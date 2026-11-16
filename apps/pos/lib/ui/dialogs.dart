@@ -472,7 +472,7 @@ String receiptText(PosState s, SavedBill b, {int width = 48, bool forPrint = fal
     ..writeln(fit(t(b.customerName)))
     ..writeln(line());
   for (final l in b.lines) {
-    out.writeln(fit(t(l.item.name)));
+    out.writeln(fit(t(l.item.fullName)));
     out.writeln(lr('  ${t(qtyText(l.qty, l.item.soldByWeight))} x ${m(l.rate)}', m(l.amount)));
   }
   out

@@ -141,6 +141,12 @@ def main():
                 base_unit, factor, pack_note = "PC", 1, "fixed pack listed in kg; treated as 1 piece"
         sold_by_weight = base_unit == "KG"
 
+        # Pack size for the POS tile, when the name itself doesn't say it
+        # ("Milk Cow H" -> "500 ml"). Taken from the start of the pack note.
+        size_re = r"\b\d+(\.\d+)?\s?(ml|l|g|kg)\b"
+        m = re.match(r"(\d+(\.\d+)?\s?(ml|L|g|kg))\b", pack_note)
+        pack_size = m.group(1) if m and not re.search(size_re, name, re.I) else ""
+
         hsn, gst = TAX[cat]
         for pat, h, g in TAX_BY_NAME:
             if re.search(pat, name):
@@ -162,6 +168,7 @@ def main():
             "trade_unit": sheet_unit,
             "trade_factor": factor,
             "pack_note": pack_note,
+            "pack_size": pack_size,
             "pack_status": "verify" if pack_note and factor != 1 else "",
             "hsn": hsn,
             "gst_rate": "" if gst is None else gst,

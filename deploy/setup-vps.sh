@@ -9,6 +9,8 @@
 #   - secrets in /etc/kwikerp/api.env, generated here, never stored in git
 #   - systemd service "kwikerp-api" on 127.0.0.1:$PORT
 #   - a CloudPanel reverse-proxy site for $DOMAIN with a Let's Encrypt certificate
+#   - a timer (kwikerp-autoupdate) that runs this script again whenever GitHub has
+#     new code or a new app build, so updates need no terminal
 #   - the tablet app at https://$DOMAIN/api/download/pos.apk
 #     re-signed with this server's own key (/etc/kwikerp/pos-signing.jks) so tablets can update
 #     without uninstalling. BACK UP that key: without it, tablets must uninstall to update.
@@ -79,7 +81,7 @@ pg() { sudo -u postgres psql -X -v ON_ERROR_STOP=1 -q "$@"; }
 pg -tAc "SELECT 1 FROM pg_database WHERE datname = 'kwikerp'" | grep -q 1 || sudo -u postgres createdb kwikerp
 pg -d kwikerp -c "CREATE TABLE IF NOT EXISTS public.kwik_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
 cd $BASE/src
-for f in db/migrations/*.sql db/seed/0001_troika_setup.sql db/seed/0002_troika_items.sql; do
+for f in db/migrations/*.sql db/seed/*.sql; do
   if ! pg -d kwikerp -tAc "SELECT 1 FROM public.kwik_migrations WHERE name = '$f'" | grep -q 1; then
     echo "Applying $f"
     pg -d kwikerp -f "$f"
@@ -158,6 +160,60 @@ fi
 if ! openssl x509 -in /etc/nginx/ssl-certificates/$DOMAIN.crt -noout -issuer 2>/dev/null | grep -q "Let's Encrypt"; then
   clpctl lets-encrypt:install:certificate --domainName=$DOMAIN || echo "Certificate not issued yet (DNS may still be spreading); run this script again in a few minutes."
 fi
+
+step "Automatic updates"
+# Every 5 minutes: if GitHub's main branch (code) or apk branch (tablet app) has
+# moved, run the newest copy of this script. Logs: journalctl -u kwikerp-autoupdate
+mkdir -p /var/lib/kwikerp
+cat > /usr/local/sbin/kwikerp-autoupdate <<'EOS'
+#!/usr/bin/env bash
+set -euo pipefail
+exec 9>/run/kwikerp-autoupdate.lock
+flock -n 9 || exit 0
+SRC=/opt/kwikerp/src
+STATE=/var/lib/kwikerp/deployed-refs
+git_app() { sudo -u kwikerp env HOME=/opt/kwikerp git -C $SRC "$@"; }
+now=$(git_app ls-remote origin refs/heads/main refs/heads/apk 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)
+[ -n "$now" ] || { echo "GitHub not reachable"; exit 0; }
+[ "$now" = "$(cat $STATE 2>/dev/null || true)" ] && exit 0
+echo "New code or app build on GitHub: updating"
+git_app fetch -q origin main
+tmp=$(mktemp)
+git_app show FETCH_HEAD:deploy/setup-vps.sh > "$tmp"
+if bash "$tmp"; then
+  echo "$now" > $STATE
+  echo "Update finished"
+else
+  echo "Update FAILED; will retry in 5 minutes"
+fi
+rm -f "$tmp"
+EOS
+chmod 755 /usr/local/sbin/kwikerp-autoupdate
+cat > /etc/systemd/system/kwikerp-autoupdate.service <<'EOS'
+[Unit]
+Description=Update KwikERP from GitHub when there is something new
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kwikerp-autoupdate
+EOS
+cat > /etc/systemd/system/kwikerp-autoupdate.timer <<'EOS'
+[Unit]
+Description=Check GitHub for KwikERP updates every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOS
+systemctl daemon-reload
+systemctl enable --now kwikerp-autoupdate.timer >/dev/null
+# This run is itself up to date
+as_app git -C $BASE/src ls-remote origin refs/heads/main refs/heads/apk | awk '{print $1}' | tr '\n' ' ' > /var/lib/kwikerp/deployed-refs || true
+echo "Checks GitHub every 5 minutes. Log: journalctl -u kwikerp-autoupdate"
 
 step "Done"
 curl -fsS https://$DOMAIN/api/health && echo || echo "HTTPS check failed"
