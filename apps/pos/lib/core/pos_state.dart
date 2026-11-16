@@ -429,6 +429,79 @@ class PosState extends ChangeNotifier {
         payLabel: paid > 0 ? 'Paid by ${mode.toUpperCase()}' : 'On credit');
   }
 
+  // ------------------------------------------------------------ bill history
+
+  /// Bills made on this tablet, newest first.
+  Future<List<Map<String, dynamic>>> billHistory() async {
+    final all = await db.docs('sales_invoice');
+    return all.reversed.toList();
+  }
+
+  /// Rebuilds a stored bill for the receipt screen and reprinting.
+  Future<SavedBill> savedBillFrom(Map<String, dynamic> inv) async {
+    final cat = catalog!;
+    final lines = <BillLine>[];
+    for (final l in await db.invoiceLines(inv['id'] as String)) {
+      final item = cat.items[l['item_id']] ??
+          Item({'id': l['item_id'], 'name': 'Item no longer listed', 'code': '', 'category_id': '', 'base_unit_id': l['unit_id']});
+      final bl = BillLine(
+          item: item,
+          unitId: l['unit_id'] as String,
+          factor: (l['factor'] as num).toDouble(),
+          qty: (l['qty'] as num).toDouble(),
+          listRate: (l['list_rate'] as num).toDouble());
+      bl.rate = (l['rate'] as num).toDouble();
+      lines.add(bl);
+    }
+    double n(String k) => ((inv[k] ?? 0) as num).toDouble();
+    final t = Totals(n('subtotal'), n('taxable'), n('cgst'), n('sgst'), n('igst'), n('round_off'), n('total'));
+    final receipts = (await db.docs('receipt')).where((r) => r['invoice_id'] == inv['id']).toList();
+    final modes = receipts.map((r) => (r['mode'] as String).toUpperCase()).toSet().join(' + ');
+    final status = inv['status'] as String;
+    return SavedBill(
+      invoice: inv,
+      docNo: inv['doc_no'] as String?,
+      totals: t,
+      lines: lines,
+      customerName: inv['customer_id'] == null
+          ? 'Walk-in customer'
+          : (cat.customers[inv['customer_id']]?.name ?? 'Customer'),
+      payLabel: status == 'cancelled'
+          ? 'CANCELLED: ${inv['cancel_reason'] ?? ''}'
+          : n('paid') > 0
+              ? 'Paid by $modes${n('balance') > 0 ? ', ${money(n('balance'), paise: false)} on credit' : ''}'
+              : 'On credit',
+    );
+  }
+
+  bool get canCancelBills {
+    final p = (user?['permissions'] as List?)?.cast<String>() ?? const [];
+    return p.contains('*') || p.contains('bill.cancel');
+  }
+
+  /// Cancels a final bill on the server (needs internet), then here.
+  /// A cashier without the permission gives a manager's mobile + PIN.
+  Future<String> cancelBill(Map<String, dynamic> inv, String reason, {String? approverPhone, String? approverPin}) async {
+    await sync?.syncNow(); // the bill must be on the server first
+    final api = Api(serverUrl!, token: token);
+    final r = await api.cancelBill(inv['id'] as String,
+        reason: reason.trim(), approverPhone: approverPhone?.trim(), approverPin: approverPin?.trim());
+    await db.patchDoc('sales_invoice', inv['id'] as String, {
+      'status': 'cancelled',
+      'cancelled_by': r['cancelledBy'],
+      'cancel_reason': reason.trim(),
+    });
+    for (final id in (r['receiptIds'] as List? ?? const [])) {
+      await db.patchDoc('receipt', id as String, {'status': 'cancelled'});
+    }
+    // Receipts the server had not seen yet are cancelled here too
+    for (final rc in (await db.docs('receipt')).where((x) => x['invoice_id'] == inv['id'])) {
+      await db.patchDoc('receipt', rc['id'] as String, {'status': 'cancelled'});
+    }
+    notifyListeners();
+    return r['cancelledByName'] as String? ?? '';
+  }
+
   /// Pay in full by cash / UPI / card.
   Future<SavedBill> payNow(String mode) async {
     final t = bill.totals(companyState);

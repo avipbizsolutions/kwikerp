@@ -70,6 +70,32 @@ function recordFailure(key: string) {
   else f.n += 1;
 }
 
+/**
+ * A manager approving something on a cashier's tablet (for example a bill
+ * cancellation): checks their mobile + PIN and that they hold `perm` at that
+ * outlet. Same lock-out as login. Returns the approver's id and name.
+ */
+export async function verifyApprover(c: any, tenantId: string, phone: string, pin: string,
+                                     locationId: string | null, perm: string) {
+  const key = `p:${tenantId}:${(phone ?? '').trim()}`;
+  const wait = lockedFor(key, 5);
+  if (wait > 0) throw new HttpException(`Too many wrong PINs. Try again in ${wait} min.`, HttpStatus.TOO_MANY_REQUESTS);
+  const u = (await c.query(
+    `SELECT id, name, pin_hash FROM app_user WHERE phone = $1 AND is_active AND deleted_at IS NULL`,
+    [(phone ?? '').trim()])).rows[0];
+  if (!u?.pin_hash || !(await bcrypt.compare(String(pin ?? ''), u.pin_hash))) {
+    recordFailure(key);
+    throw new ForbiddenException("Manager's mobile or PIN is wrong");
+  }
+  failures.delete(key);
+  const perms = (await c.query(
+    `SELECT DISTINCT unnest(r.permissions) AS p FROM user_role ur JOIN role r ON r.id = ur.role_id
+      WHERE ur.user_id = $1 AND ur.deleted_at IS NULL AND (ur.location_id IS NULL OR ur.location_id = $2)`,
+    [u.id, locationId])).rows.map((r: any) => r.p as string);
+  if (!perms.includes('*') && !perms.includes(perm)) throw new ForbiddenException(`${u.name} cannot approve this`);
+  return { id: u.id as string, name: u.name as string };
+}
+
 /** Test hook. */
 export function clearLoginFailures() {
   failures.clear();

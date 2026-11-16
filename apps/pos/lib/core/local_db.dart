@@ -105,6 +105,28 @@ class LocalDb {
     return r.map((e) => Map<String, dynamic>.from(jsonDecode(e['data'] as String) as Map)).toList();
   }
 
+  /// Lines of one bill (line ids start with the bill id's first 24 characters).
+  Future<List<Map<String, dynamic>>> invoiceLines(String invoiceId) async {
+    final r = await db.query('doc',
+        columns: ['data'],
+        where: 'tbl = ? AND id LIKE ?',
+        whereArgs: ['sales_invoice_line', '${invoiceId.substring(0, 24)}%']);
+    return r
+        .map((e) => Map<String, dynamic>.from(jsonDecode(e['data'] as String) as Map))
+        .where((m) => m['invoice_id'] == invoiceId)
+        .toList()
+      ..sort((a, b) => (a['line_no'] as num).compareTo(b['line_no'] as num));
+  }
+
+  /// Changes a stored document without sending it to the server again
+  /// (for changes the server already made, like a cancellation).
+  Future<void> patchDoc(String table, String id, Map<String, dynamic> changes) async {
+    final r = await db.query('doc', columns: ['data'], where: 'tbl = ? AND id = ?', whereArgs: [table, id]);
+    if (r.isEmpty) return;
+    final m = Map<String, dynamic>.from(jsonDecode(r.first['data'] as String) as Map)..addAll(changes);
+    await db.update('doc', {'data': jsonEncode(m)}, where: 'tbl = ? AND id = ?', whereArgs: [table, id]);
+  }
+
   Future<Map<String, dynamic>?> doc(String table, String id) async {
     final r = await db.query('doc', columns: ['data'], where: 'tbl = ? AND id = ?', whereArgs: [table, id]);
     return r.isEmpty ? null : Map<String, dynamic>.from(jsonDecode(r.first['data'] as String) as Map);

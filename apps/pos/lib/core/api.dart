@@ -55,4 +55,17 @@ class Api {
         .timeout(const Duration(seconds: 60));
     await _decode(r);
   }
+
+  Future<Map<String, dynamic>> cancelBill(String id, {required String reason, String? approverPhone, String? approverPin}) async {
+    final r = await http
+        .post(_u('/bills/$id/cancel'),
+            headers: _headers,
+            body: jsonEncode({
+              'reason': reason,
+              if (approverPhone != null) 'approverPhone': approverPhone,
+              if (approverPin != null) 'approverPin': approverPin,
+            }))
+        .timeout(const Duration(seconds: 20));
+    return Map<String, dynamic>.from(await _decode(r) as Map);
+  }
 }

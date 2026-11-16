@@ -272,3 +272,51 @@ test('head office adds a customer and sets category and own limits', async () =>
   assert.equal((await call('GET', '/customers', cashierToken)).status, 403);
 });
 
+test('a cashier cancels a bill with the manager\'s PIN; payment and stock are reversed', async () => {
+  const t = pulled.tables;
+  const me = (await call('GET', '/auth/me', cashierToken)).body;
+  const item = t.item.find((i: any) => i.code === '2');
+  const pc = t.unit.find((u: any) => u.code === 'PC');
+  const shiftId = randomUUID();
+  const id = randomUUID();
+  const push = await call('POST', '/sync/push', cashierToken, {
+    shift: [{ id: shiftId, user_id: me.userId, opened_at: new Date().toISOString(), opening_cash: 0 }],
+    sales_invoice: [{
+      id, company_id: t.company[0].id, shift_id: shiftId, doc_type: 'INV', doc_no: `DD3-${deviceCode}-2627-000002`,
+      doc_date: '2026-11-16', status: 'final', price_level_id: t.price_level[0].id, place_of_supply: '10',
+      subtotal: 72, taxable: 72, total: 72, paid: 72, balance: 0, created_by: me.userId,
+      finalised_at: new Date().toISOString() }],
+    sales_invoice_line: [{ id: randomUUID(), invoice_id: id, line_no: 1, item_id: item.id, unit_id: pc.id, qty: 2,
+      factor: 1, rate: 36, list_rate: 36, gst_rate: 0, taxable: 72, amount: 72 }],
+    receipt: [{ id: randomUUID(), doc_date: '2026-11-16', invoice_id: id, mode: 'cash', amount: 72,
+      created_by: me.userId, status: 'final', shift_id: shiftId }],
+    stock_move: [{ id: randomUUID(), item_id: item.id, qty: -2, move_type: 'sale', doc_id: id, move_date: '2026-11-16',
+      created_by: me.userId }],
+  });
+  assert.equal(push.status, 201, JSON.stringify(push.body));
+
+  const noReason = await call('POST', `/bills/${id}/cancel`, cashierToken, { reason: '' });
+  assert.equal(noReason.status, 400);
+  const noManager = await call('POST', `/bills/${id}/cancel`, cashierToken, { reason: 'Wrong item' });
+  assert.equal(noManager.status, 403, 'a cashier alone cannot cancel');
+  const ok = await call('POST', `/bills/${id}/cancel`, cashierToken,
+    { reason: 'Wrong item', approverPhone: '9222222222', approverPin: '5678' });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  assert.equal(ok.body.cancelledByName, 'Test Owner');
+
+  const inv = (await admin.query('SELECT status, cancel_reason FROM sales_invoice WHERE id = $1', [id])).rows[0];
+  assert.deepEqual(inv, { status: 'cancelled', cancel_reason: 'Wrong item' });
+  const rc = (await admin.query('SELECT status FROM receipt WHERE invoice_id = $1', [id])).rows;
+  assert.ok(rc.every((r) => r.status === 'cancelled'));
+  const net = (await admin.query('SELECT sum(qty)::float AS q FROM stock_move WHERE doc_id = $1', [id])).rows[0].q;
+  assert.equal(net, 0, 'stock back to where it was');
+
+  assert.equal((await call('POST', `/bills/${id}/cancel`, cashierToken, { reason: 'again' })).status, 400);
+  assert.equal((await call('POST', `/bills/${randomUUID()}/cancel`, cashierToken, { reason: 'Wrong item' })).status, 404);
+  // A tablet resending the old final copy does not bring the bill back
+  await call('POST', '/sync/push', cashierToken, { sales_invoice: [{ ...push && {}, id, company_id: t.company[0].id,
+    shift_id: shiftId, doc_type: 'INV', doc_no: `DD3-${deviceCode}-2627-000002`, doc_date: '2026-11-16', status: 'final',
+    price_level_id: t.price_level[0].id, place_of_supply: '10', total: 72, created_by: me.userId }] });
+  assert.equal((await admin.query('SELECT status FROM sales_invoice WHERE id = $1', [id])).rows[0].status, 'cancelled');
+});
+

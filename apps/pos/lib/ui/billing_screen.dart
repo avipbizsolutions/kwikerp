@@ -6,6 +6,7 @@ import '../core/billing.dart';
 import '../core/catalog.dart';
 import '../core/pos_state.dart';
 import '../core/printer.dart';
+import 'bills_screen.dart';
 import 'dialogs.dart';
 import 'shift_screens.dart';
 import 'theme.dart';
@@ -227,7 +228,9 @@ class _TopBar extends StatelessWidget {
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.white),
           onSelected: (v) async {
-            if (v == 'printer') {
+            if (v == 'bills') {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillsScreen()));
+            } else if (v == 'printer') {
               await showPrinterSetup(context);
             } else if (v == 'reprint') {
               final p = context.read<PrinterService>();
@@ -241,6 +244,7 @@ class _TopBar extends StatelessWidget {
             }
           },
           itemBuilder: (_) => const [
+            PopupMenuItem(value: 'bills', child: Text('Bills · reprint or cancel')),
             PopupMenuItem(value: 'printer', child: Text('Printer')),
             PopupMenuItem(value: 'reprint', child: Text('Reprint last bill')),
             PopupMenuItem(value: 'close', child: Text('Close shift')),
