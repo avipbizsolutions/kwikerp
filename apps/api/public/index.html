@@ -12,16 +12,62 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--ground); }
-  header { background: var(--navy); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 17px; margin: 0; flex: 1; }
-  header small { color: #c9d6e6; display: block; font-weight: 400; font-size: 12px; }
-  header button { background: transparent; color: #fff; border: 1px solid #5a7898; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; }
-  nav { display: flex; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
-  nav { overflow-x: auto; }
-  nav button { flex: 1; white-space: nowrap; border: 0; background: none; padding: 13px 8px; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; }
-  nav button.on { color: var(--navy); border-bottom-color: var(--navy); }
-  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #d93025; color: #fff; font-size: 12px; line-height: 20px; margin-left: 4px; }
-  main { max-width: 900px; margin: 0 auto; padding: 14px; }
+  #app { display: flex; min-height: 100vh; }
+  #side { width: 240px; flex: 0 0 240px; background: #fff; border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh;
+    overflow-y: auto; display: flex; flex-direction: column; padding: 14px 10px; z-index: 5; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
+  .brand .mark { width: 34px; height: 34px; border-radius: 9px; background: var(--navy); color: #fff; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; flex: 0 0 auto; overflow: hidden; }
+  .brand .mark canvas { max-width: 34px; max-height: 34px; background: #fff; }
+  .brand b { display: block; font-size: 15px; line-height: 1.2; } .brand small { color: var(--muted); font-size: 12px; }
+  .menu button, .subnav button { display: flex; align-items: center; width: 100%; text-align: left; border: 0; background: none; padding: 9px 10px;
+    border-radius: 8px; font: inherit; font-size: 14px; font-weight: 500; color: #2b3644; cursor: pointer; }
+  .menu button:hover, .subnav button:hover { background: var(--ground); }
+  .menu button.on, .subnav button.on { background: var(--tint); color: var(--navy); font-weight: 700; }
+  .grp { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #5b6878; padding: 12px 10px 4px; }
+  .me { margin-top: auto; border-top: 1px solid var(--line); padding: 12px 8px 0; display: flex; align-items: center; gap: 10px; }
+  .me .av { width: 32px; height: 32px; border-radius: 16px; background: var(--tint); color: var(--navy); font-weight: 700; display: flex;
+    align-items: center; justify-content: center; flex: 0 0 auto; }
+  .me b { display: block; font-size: 14px; } .me small { color: var(--muted); font-size: 12px; }
+  .me button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid #b8c2cc; background: #fff; cursor: pointer; }
+  .topbar { display: none; }
+  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #b45309; color: #fff; font-size: 12px;
+    line-height: 20px; margin-left: auto; text-align: center; font-weight: 700; }
+  main { flex: 1; min-width: 0; padding: 22px 28px 40px; }
+  main > div { max-width: 1120px; margin: 0 auto; }
+  .pgtitle { max-width: 1120px; margin: 0 auto 14px; font-size: 22px; font-weight: 700; }
+  main.wide > div, main.wide .pgtitle { max-width: none; }
+  .two { display: flex; flex-wrap: wrap; gap: 0 16px; align-items: flex-start; }
+  .two > .l { flex: 3 1 520px; min-width: 0; } .two > .r { flex: 2 1 300px; min-width: 0; }
+  .setwrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .subnav { flex: 0 1 220px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 6px; position: sticky; top: 16px; }
+  .setbody { flex: 999 1 480px; min-width: 0; }
+  .setgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .setgrid .card { margin: 0; padding: 0; overflow: hidden; }
+  .setgrid .card > div:first-child { padding: 14px 16px 8px; }
+  .setgrid button { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: #fff; padding: 11px 16px;
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .setgrid button:hover { background: var(--ground); }
+  .hcols { display: flex; flex-wrap: wrap; gap: 0 16px; align-items: flex-start; }
+  .hcols > div { flex: 1 1 380px; min-width: 0; }
+  .bar { height: 10px; background: var(--ground); border-radius: 5px; overflow: hidden; flex: 1; }
+  .bar i { display: block; height: 10px; background: var(--blue); border-radius: 5px; }
+  .lrow { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+  #shade { display: none; }
+  @media (min-width: 900px) { input, select { font-size: 15px; padding: 9px 11px; } }
+  @media (max-width: 899px) {
+    #app { display: block; }
+    .topbar { display: flex; position: sticky; top: 0; z-index: 4; background: #fff; border-bottom: 1px solid var(--line); height: 54px;
+      align-items: center; gap: 8px; padding: 0 10px 0 4px; }
+    .topbar button { width: 44px; height: 44px; border: 0; background: none; display: flex; align-items: center; justify-content: center; }
+    .topbar b { flex: 1; font-size: 17px; }
+    #side { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 24px rgba(0,0,0,.2); }
+    #app.menu-open #side { transform: none; }
+    #app.menu-open #shade { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 4; }
+    main { padding: 14px 12px 40px; }
+    .pgtitle { display: none; }
+    .subnav { position: static; flex-basis: 100%; }
+  }
   .card { background: var(--card); border-radius: 10px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--line); }
   .row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .grow { flex: 1; }
@@ -59,7 +105,7 @@
   .login { max-width: 380px; margin: 8vh auto; }
   .hidden { display: none !important; }
   @media print {
-    header, nav, #tab-sales > .card:first-child, .noprint { display: none !important; }
+    #side, .topbar, .pgtitle, #tab-sales > .card:first-child, .noprint { display: none !important; }
     body { background: #fff; } .card { border: 0; padding: 0; } main { padding: 0; }
   }
   .inline { background: var(--ground); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
@@ -98,29 +144,45 @@
 </section>
 
 <section id="app" class="hidden">
-  <header>
-    <h1>KwikERP Head Office<small id="who"></small></h1>
-    <button id="logout" type="button">Log out</button>
-  </header>
-  <nav>
-    <button data-tab="approvals" class="on">Approvals<span id="badge" class="badge hidden"></span></button>
-    <button data-tab="sales">Sales</button>
-    <button data-tab="dispatch">Dispatch</button>
-    <button data-tab="stock">Stock</button>
-    <button data-tab="count">Count</button>
-    <button data-tab="audit">Audit</button>
-    <button data-tab="customers">Customers</button>
-    <button data-tab="types">Customer types</button>
-    <button data-tab="rates">Rates</button>
-    <button data-tab="items">Items</button>
-    <button data-tab="tally">Tally</button>
-    <button data-tab="users">Users</button>
-    <button data-tab="receipt">Receipt</button>
-    <button data-tab="settings">Settings</button>
-    <button data-tab="code">Code</button>
-  </nav>
+  <div class="topbar">
+    <button type="button" id="menuBtn" aria-label="Open menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+    <b id="topTitle">Home</b><span id="badge2" class="badge hidden"></span>
+  </div>
+  <div id="shade"></div>
+  <aside id="side">
+    <div class="brand"><div class="mark" id="brandMark">K</div><div><b id="brandName">KwikERP</b><small>Head office</small></div></div>
+    <nav class="menu" aria-label="Main menu">
+      <button data-tab="home" class="on">Home</button>
+      <button data-tab="approvals">Approvals<span id="badge" class="badge hidden"></span></button>
+      <div class="grp">Daily</div>
+      <button data-tab="sales">Sales</button>
+      <button data-tab="audit">Audit</button>
+      <div class="grp">Stock</div>
+      <button data-tab="dispatch">Dispatch</button>
+      <button data-tab="stock">Stock position</button>
+      <button data-tab="count">Count stock</button>
+      <div class="grp">Products &amp; prices</div>
+      <button data-tab="rates">Rates</button>
+      <button data-tab="items">Items &amp; photos</button>
+      <div class="grp">Customers</div>
+      <button data-tab="customers">Customers</button>
+      <button data-tab="types">Customer types</button>
+      <div class="grp">Accounts</div>
+      <button data-tab="tally">Tally export</button>
+      <div class="grp"></div>
+      <button data-tab="settings">Settings</button>
+    </nav>
+    <div class="me"><div class="av" id="avatar"></div><div style="flex:1;min-width:0"><b id="who"></b><small id="whoRole"></small></div>
+      <button id="logout" type="button">Log out</button></div>
+  </aside>
   <main>
-    <div id="tab-approvals">
+    <h1 class="pgtitle" id="pgTitle">Home</h1>
+    <div id="tab-home">
+      <div id="hmTiles" class="tiles"></div>
+      <div class="hcols"><div id="hmLeft"></div><div id="hmRight"></div></div>
+    </div>
+    <div id="tab-approvals" class="hidden">
+      <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="ghost" type="button" id="toCode" style="padding:8px 12px">Approval code for an outlet without internet</button></div>
       <div id="apMsg"></div>
       <div id="apStock"></div>
       <div id="apList"></div>
@@ -182,103 +244,11 @@
         <div id="tMsg"></div>
       </div>
       <div id="tOut"></div>
-      <details class="card">
-        <summary><b>Tally ledger names</b> <span class="muted">(set once; must match your Tally exactly)</span></summary>
-        <p class="muted">{outlet} becomes the outlet code (e.g. "Cash - {outlet}" → "Cash - DD3"); {rate} becomes the GST rate.</p>
-        <form id="tSet"></form>
-      </details>
       <div class="card">
         <b>First import only</b>
         <p class="muted">Credit customers need a ledger in Tally before their bills can be imported. This file creates them
           under Sundry Debtors with bill-wise details on. Import it with <b>Import → Masters</b>; customers already in Tally are skipped.</p>
         <div class="actions"><button class="ghost" type="button" id="tLed">Download customer ledgers</button></div>
-      </div>
-    </div>
-
-    <div id="tab-users" class="hidden">
-      <div class="card">
-        <div class="row"><b class="grow" style="font-size:16px">User types</b>
-          <button class="ghost" type="button" id="rlAdd">+ Add user type</button></div>
-        <p class="muted">What each type of login may do. Changes apply when the person next logs in. Owner is locked.</p>
-        <div id="rlList"></div>
-      </div>
-      <div id="rlEdit"></div>
-      <div class="card">
-        <div class="row"><b class="grow" style="font-size:16px">Staff logins</b>
-          <button class="primary" type="button" id="uAdd">Add login</button></div>
-        <p class="muted">Each login has a user type. Types that work at one location (Cashier, Store Manager, Dispatch) need the location.</p>
-      </div>
-      <div id="uEdit"></div>
-      <div id="uMsg"></div>
-      <div id="uList"></div>
-      <div class="card">
-        <div class="row"><b class="grow" style="font-size:16px">Tablets</b></div>
-        <form id="dForm" class="row" style="align-items:flex-end">
-          <div class="grow" style="flex-basis:140px"><label>Outlet</label><select name="location" id="dLoc"></select></div>
-          <div class="grow" style="flex-basis:100px"><label>Tablet</label><input name="code" placeholder="T2" required></div>
-          <div class="grow" style="flex-basis:120px"><button class="primary" type="submit" style="width:100%">Add tablet</button></div>
-        </form>
-        <div id="dMsg"></div>
-        <div id="dList"></div>
-      </div>
-    </div>
-
-    <div id="tab-receipt" class="hidden">
-      <div id="rcMsg"></div>
-      <div class="card">
-        <b style="font-size:16px">Receipt layout</b>
-        <p class="muted">Applies to every tablet at its next sync. In the lines you can use {company} {outlet} {outlet_address}
-          {address} {gstin} {phone} {email} {fssai}; a line whose fields are empty is left out.</p>
-        <form id="rcForm">
-          <label>Logo (black and white prints best)</label>
-          <div class="row" style="align-items:center">
-            <input type="file" id="rcLogoFile" accept="image/*" style="flex:1 1 200px">
-            <button class="ghost" type="button" id="rcLogoClear">Remove logo</button>
-          </div>
-          <label>Logo width on paper</label>
-          <select id="rcLogoW"><option value="192">Small</option><option value="256" selected>Medium</option><option value="384">Full width (58 mm)</option></select>
-          <canvas id="rcLogo" style="display:block;margin:10px auto;max-width:100%;image-rendering:pixelated;background:#fff"></canvas>
-          <label>Title (big, centred)</label><input name="title">
-          <label>Lines under the title</label><textarea name="header" rows="5" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
-          <label>Footer</label><textarea name="footer" rows="2" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
-          <div id="rcOpts"></div>
-          <div class="inline">
-            <b>Paper spacing</b> <span class="muted">(blank lines, about 4 mm each; 0 to 10; same for every outlet)</span>
-            <div class="scroll"><table style="max-width:420px">
-              <tr><th></th><th style="text-align:center">Top</th><th style="text-align:center">Bottom</th></tr>
-              <tr><td><b>Bill</b></td><td><input name="billTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
-                <td><input name="billBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
-              <tr><td><b>Token</b></td><td><input name="tokenTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
-                <td><input name="tokenBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
-            </table></div>
-            <div class="muted">Top: paper before the first line. Bottom: paper after the last line, so the slip clears the tear bar.</div>
-          </div>
-          <div class="actions"><button class="primary" type="submit">Save receipt layout</button></div>
-          <div data-m></div>
-        </form>
-      </div>
-      <div class="card">
-        <div class="row"><b class="grow">Preview</b>
-          <select id="rcOutlet" style="width:auto"></select>
-          <select id="rcCols" style="width:auto"><option value="48">80 mm</option><option value="32">58 mm</option></select></div>
-        <pre id="rcPrev" style="background:#fafaf7;border:1px solid var(--line);padding:12px;overflow-x:auto;font-size:12px;line-height:1.35"></pre>
-      </div>
-      <div class="card">
-        <b style="font-size:16px">Business details on receipts</b>
-        <form id="bzForm">
-          <div class="row">
-            <div class="grow" style="flex-basis:180px"><label>GSTIN</label><input name="gstin" style="text-transform:uppercase"></div>
-            <div class="grow" style="flex-basis:150px"><label>Phone</label><input name="phone" inputmode="tel"></div>
-          </div>
-          <div class="row">
-            <div class="grow" style="flex-basis:200px"><label>Email</label><input name="email" type="email"></div>
-            <div class="grow" style="flex-basis:150px"><label>FSSAI licence</label><input name="fssai"></div>
-          </div>
-          <label>Company address</label><input name="address">
-          <div id="bzOutlets"></div>
-          <div class="actions"><button class="primary" type="submit">Save business details</button></div>
-          <div data-m></div>
-        </form>
       </div>
     </div>
 
@@ -343,7 +313,7 @@
     </div>
 
 
-    <div id="tab-dispatch" class="hidden">
+    <div id="tab-dispatch" class="hidden"><div class="two"><div class="l">
       <div class="card">
         <div class="row"><b class="grow" style="font-size:16px" id="dpTitle">New dispatch</b>
           <button class="ghost" type="button" id="dpNew">Start again</button></div>
@@ -373,13 +343,14 @@
         </form>
       </div>
       <div id="dpView"></div>
+      </div><div class="r">
       <div class="card"><b style="font-size:16px">Returns from counters to confirm</b><div id="dpReturns"></div></div>
       <div class="card">
         <div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Dispatches and returns</b>
           <select id="dpDays" style="width:auto"><option value="1">Today</option><option value="7" selected>7 days</option><option value="31">31 days</option></select></div>
         <div id="dpList"></div>
       </div>
-    </div>
+    </div></div></div>
 
     <div id="tab-stock" class="hidden">
       <div class="card">
@@ -457,14 +428,57 @@
     </div>
 
     <div id="tab-settings" class="hidden">
-      <div id="stMsg"></div>
+      <div class="setwrap">
+        <nav class="subnav" id="stNav" aria-label="Settings sections">
+          <button data-st="overview" class="on">All settings</button>
+          <div class="grp">Business</div>
+          <button data-st="company">Company details</button>
+          <button data-st="logo">Logo</button>
+          <button data-st="locations">Locations</button>
+          <div class="grp">People &amp; access</div>
+          <button data-st="logins">Logins</button>
+          <button data-st="roles">User types</button>
+          <button data-st="tablets">Tablets</button>
+          <div class="grp">Billing &amp; printing</div>
+          <button data-st="receipt">Receipt layout and spacing</button>
+          <button data-st="outletlines">Outlet details on the bill</button>
+          <div class="grp">Stock</div>
+          <button data-st="limits">Approval limits and MRP</button>
+          <div class="grp">Accounts (Tally)</div>
+          <button data-st="ledgers">Ledger names</button>
+        </nav>
+        <div class="setbody">
+          <div id="stMsg"></div>
+        <div data-sec="overview"><div class="setgrid" id="stOverview"></div></div>
+        <div data-sec="company" class="hidden">
       <div class="card">
         <div class="row"><b class="grow" style="font-size:16px">Company (entity) details</b>
           <button class="ghost" type="button" id="stCoAdd">+ Add another company</button></div>
-        <p class="muted" style="margin:4px 0 0">Printed on bills, challans and the Tally export. The receipt layout stays under Receipt.</p>
+        <p class="muted" style="margin:4px 0 0">Printed on bills, challans and the Tally export.</p>
         <div id="stCo"></div>
       </div>
       <div id="stCoEdit"></div>
+        </div>
+        <div data-sec="logo" class="hidden">
+      <div class="card">
+        <b style="font-size:16px">Logo</b>
+        <p class="muted" style="margin:4px 0 0">Shown at the top of this page's menu and printed on bills. A black and white logo prints best.</p>
+        <form id="lgForm">
+          <label>Logo (black and white prints best)</label>
+          <div class="row" style="align-items:center">
+            <input type="file" id="rcLogoFile" accept="image/*" style="flex:1 1 200px">
+            <button class="ghost" type="button" id="rcLogoClear">Remove logo</button>
+          </div>
+          <label>Logo width on paper</label>
+          <select id="rcLogoW"><option value="192">Small</option><option value="256" selected>Medium</option><option value="384">Full width (58 mm)</option></select>
+          <canvas id="rcLogo" style="display:block;margin:10px auto;max-width:100%;image-rendering:pixelated;background:#fff"></canvas>
+          <div class="actions"><button class="primary" type="submit">Save logo</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+
+        </div>
+        <div data-sec="locations" class="hidden">
       <div class="card">
         <div class="row"><b class="grow" style="font-size:16px">Locations</b>
           <button class="primary" type="button" id="stLocAdd">+ Add location</button></div>
@@ -473,6 +487,94 @@
         <div class="scroll" id="stLoc"></div>
       </div>
       <div id="stLocEdit"></div>
+        </div>
+        <div data-sec="logins" class="hidden">
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">Staff logins</b>
+          <button class="primary" type="button" id="uAdd">Add login</button></div>
+        <p class="muted">Each login has a user type. Types that work at one location (Cashier, Store Manager, Dispatch) need the location.</p>
+      </div>
+      <div id="uEdit"></div>
+      <div id="uMsg"></div>
+      <div id="uList"></div>
+        </div>
+        <div data-sec="roles" class="hidden">
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">User types</b>
+          <button class="ghost" type="button" id="rlAdd">+ Add user type</button></div>
+        <p class="muted">What each type of login may do. Changes apply when the person next logs in. Owner is locked.</p>
+        <div id="rlList"></div>
+      </div>
+      <div id="rlEdit"></div>
+        </div>
+        <div data-sec="tablets" class="hidden">
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">Tablets</b></div>
+        <form id="dForm" class="row" style="align-items:flex-end">
+          <div class="grow" style="flex-basis:140px"><label>Outlet</label><select name="location" id="dLoc"></select></div>
+          <div class="grow" style="flex-basis:100px"><label>Tablet</label><input name="code" placeholder="T2" required></div>
+          <div class="grow" style="flex-basis:120px"><button class="primary" type="submit" style="width:100%">Add tablet</button></div>
+        </form>
+        <div id="dMsg"></div>
+        <div id="dList"></div>
+      </div>
+        </div>
+        <div data-sec="receipt" class="hidden">
+      <div id="rcMsg"></div>
+      <div class="card">
+        <b style="font-size:16px">Receipt layout</b>
+        <p class="muted">The logo is under Business › Logo. Applies to every tablet at its next sync. In the lines you can use {company} {outlet} {outlet_address}
+          {address} {gstin} {phone} {email} {fssai}; a line whose fields are empty is left out.</p>
+        <form id="rcForm">
+          <label>Title (big, centred)</label><input name="title">
+          <label>Lines under the title</label><textarea name="header" rows="5" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
+          <label>Footer</label><textarea name="footer" rows="2" style="width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid #b8c2cc;border-radius:8px"></textarea>
+          <div id="rcOpts"></div>
+          <div class="inline">
+            <b>Paper spacing</b> <span class="muted">(blank lines, about 4 mm each; 0 to 10; same for every outlet)</span>
+            <div class="scroll"><table style="max-width:420px">
+              <tr><th></th><th style="text-align:center">Top</th><th style="text-align:center">Bottom</th></tr>
+              <tr><td><b>Bill</b></td><td><input name="billTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
+                <td><input name="billBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
+              <tr><td><b>Token</b></td><td><input name="tokenTop" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td>
+                <td><input name="tokenBottom" type="number" min="0" max="10" inputmode="numeric" style="text-align:center"></td></tr>
+            </table></div>
+            <div class="muted">Top: paper before the first line. Bottom: paper after the last line, so the slip clears the tear bar.</div>
+          </div>
+          <div class="actions"><button class="primary" type="submit">Save receipt layout</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="row"><b class="grow">Preview</b>
+          <select id="rcOutlet" style="width:auto"></select>
+          <select id="rcCols" style="width:auto"><option value="48">80 mm</option><option value="32">58 mm</option></select></div>
+        <pre id="rcPrev" style="background:#fafaf7;border:1px solid var(--line);padding:12px;overflow-x:auto;font-size:12px;line-height:1.35"></pre>
+      </div>
+        </div>
+        <div data-sec="outletlines" class="hidden">
+      <div class="card">
+        <b style="font-size:16px">Outlet details on the bill</b>
+        <p class="muted" style="margin:4px 0 0">Name, address and phone each outlet prints. Company GSTIN, FSSAI and address are under Business › Company details.</p>
+        <form id="bzForm">
+          <div class="hidden">
+          <div class="row">
+            <div class="grow" style="flex-basis:180px"><label>GSTIN</label><input name="gstin" style="text-transform:uppercase"></div>
+            <div class="grow" style="flex-basis:150px"><label>Phone</label><input name="phone" inputmode="tel"></div>
+          </div>
+          <div class="row">
+            <div class="grow" style="flex-basis:200px"><label>Email</label><input name="email" type="email"></div>
+            <div class="grow" style="flex-basis:150px"><label>FSSAI licence</label><input name="fssai"></div>
+          </div>
+          <label>Company address</label><input name="address">
+          </div>
+          <div id="bzOutlets"></div>
+          <div class="actions"><button class="primary" type="submit">Save business details</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+        </div>
+        <div data-sec="limits" class="hidden">
       <div class="card">
         <b style="font-size:16px">Approval limits</b>
         <form id="stLim">
@@ -481,6 +583,17 @@
           <div class="actions"><button class="primary" type="submit">Save limits</button></div>
           <div data-m></div>
         </form>
+      </div>
+        </div>
+        <div data-sec="ledgers" class="hidden">
+      <div class="card">
+        <b style="font-size:16px">Tally ledger names</b> <span class="muted">(set once; must match your Tally exactly)</span>
+        <p class="muted">{outlet} becomes the outlet code (e.g. "Cash - {outlet}" → "Cash - DD3"); {rate} becomes the GST rate.</p>
+        <form id="tSet"></form>
+      </div>
+
+        </div>
+        </div>
       </div>
     </div>
     <div id="tab-code" class="hidden">
@@ -555,26 +668,158 @@
   };
 
   // ----------------------------------------------------------------- tabs
-  document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
-    document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'dispatch', 'stock', 'count', 'audit', 'customers', 'types', 'rates', 'items', 'tally', 'users', 'receipt', 'settings', 'code']
-      .forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
-    document.querySelector('main').classList.toggle('wide', b.dataset.tab === 'rates' || b.dataset.tab === 'stock');
-    if (b.dataset.tab === 'dispatch') openDispatch();
-    if (b.dataset.tab === 'stock') loadStock();
-    if (b.dataset.tab === 'count') openCount();
-    if (b.dataset.tab === 'audit') openAudit();
-    if (b.dataset.tab === 'settings') loadSettings();
-    if (b.dataset.tab === 'sales') loadSales();
-    if (b.dataset.tab === 'customers') loadCustomers();
-    if (b.dataset.tab === 'types') loadTypes();
-    if (b.dataset.tab === 'rates') loadRates();
-    if (b.dataset.tab === 'items') loadPhotos();
-    if (b.dataset.tab === 'tally') openTally();
-    if (b.dataset.tab === 'users') loadUsers();
-    if (b.dataset.tab === 'receipt') loadReceipt();
-    if (b.dataset.tab === 'approvals') loadApprovals();
-  });
+  const TABS = ['home', 'approvals', 'sales', 'dispatch', 'stock', 'count', 'audit', 'customers', 'types', 'rates', 'items', 'tally', 'settings', 'code'];
+  function go(tab) {
+    const b = document.querySelector(`.menu button[data-tab="${tab}"]`);
+    document.querySelectorAll('.menu button').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab || (tab === 'code' && x.dataset.tab === 'approvals')));
+    TABS.forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== tab));
+    const title = tab === 'code' ? 'Approval code' : (b ? b.childNodes[0].textContent.trim() : '');
+    $('pgTitle').textContent = title; $('topTitle').textContent = title;
+    document.querySelector('main').classList.toggle('wide', tab === 'rates' || tab === 'stock');
+    $('app').classList.remove('menu-open');
+    window.scrollTo(0, 0);
+    const load = { home: loadHome, approvals: loadApprovals, sales: loadSales, dispatch: openDispatch, stock: loadStock, count: openCount,
+      audit: openAudit, customers: loadCustomers, types: loadTypes, rates: loadRates, items: loadPhotos, tally: openTally,
+      settings: () => openSettings('overview') }[tab];
+    if (load) load();
+  }
+  document.querySelectorAll('.menu button').forEach((b) => b.onclick = () => go(b.dataset.tab));
+  $('menuBtn').onclick = () => $('app').classList.toggle('menu-open');
+  $('shade').onclick = () => $('app').classList.remove('menu-open');
+  $('toCode').onclick = () => go('code');
+
+  // Company name and logo at the top of the menu.
+  async function loadBrand() {
+    try {
+      const b = await api('GET', '/settings/brand');
+      $('brandName').textContent = b.name || 'KwikERP';
+      const mark = $('brandMark');
+      if (b.logo && b.logo.data) {
+        const cv = document.createElement('canvas');
+        const bytes = Uint8Array.from(atob(b.logo.data), (ch) => ch.charCodeAt(0));
+        cv.width = b.logo.width; cv.height = b.logo.height;
+        const ctx = cv.getContext('2d'); const img = ctx.createImageData(cv.width, cv.height); const per = cv.width / 8;
+        for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+          const on = bytes[y * per + (x >> 3)] & (0x80 >> (x & 7)); const k = (y * cv.width + x) * 4;
+          img.data[k] = img.data[k + 1] = img.data[k + 2] = on ? 0 : 255; img.data[k + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        mark.innerHTML = ''; mark.style.background = '#fff'; mark.style.border = '1px solid var(--line)'; mark.appendChild(cv);
+      } else {
+        mark.textContent = (b.name || 'K').trim().charAt(0).toUpperCase();
+        mark.style.background = ''; mark.style.border = '';
+      }
+    } catch (err) { /* menu keeps the product name */ }
+  }
+
+  // --------------------------------------------------------------- settings
+  const ST_NEED = { company: 'settings.manage', logo: 'settings.manage', locations: 'settings.manage', logins: 'users.manage',
+    roles: 'users.manage', tablets: 'users.manage', receipt: 'settings.manage', outletlines: 'settings.manage',
+    limits: 'settings.manage', ledgers: 'accounts.export' };
+  const ST_ABOUT = { 'Business': 'Who you are and where you work', 'People & access': 'Who can log in and what they can do',
+    'Billing & printing': 'What the bill and Token look like', 'Stock': 'Who approves adjustments, how stock is valued',
+    'Accounts (Tally)': 'What goes to TallyPrime' };
+  function openSettings(sec) {
+    document.querySelectorAll('#stNav button').forEach((b) => b.classList.toggle('on', b.dataset.st === sec));
+    document.querySelectorAll('.setbody [data-sec]').forEach((d) => d.classList.toggle('hidden', d.dataset.sec !== sec));
+    msg($('stMsg'), '');
+    const load = { company: loadSettings, locations: loadSettings, limits: loadSettings, logo: loadReceipt, receipt: loadReceipt,
+      outletlines: loadReceipt, logins: loadUsers, roles: loadUsers, tablets: loadUsers, ledgers: openTally }[sec];
+    if (sec === 'overview') drawSettingsOverview(); else if (load) load();
+    if (sec !== 'overview') $('pgTitle').textContent = $('topTitle').textContent =
+      'Settings › ' + document.querySelector(`#stNav button[data-st="${sec}"]`).textContent;
+  }
+  $('stNav').onclick = (e) => { const b = e.target.closest('button[data-st]'); if (b) openSettings(b.dataset.st); };
+  function drawSettingsOverview() {
+    const groups = []; let g = null;
+    for (const el of $('stNav').children) {
+      if (el.classList.contains('grp')) { g = { name: el.textContent, items: [] }; groups.push(g); }
+      else if (g && !el.classList.contains('hidden')) g.items.push([el.dataset.st, el.textContent]);
+    }
+    $('stOverview').innerHTML = groups.filter((x) => x.items.length).map((x) => `<div class="card"><div><b style="font-size:16px">${esc(x.name)}</b>
+      <div class="muted">${esc(ST_ABOUT[x.name] || '')}</div></div>
+      ${x.items.map(([k, t]) => `<button type="button" data-go="${esc(k)}">${esc(t)} ›</button>`).join('')}</div>`).join('');
+  }
+  $('stOverview').onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) openSettings(b.dataset.go); };
+  $('lgForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const m = e.target.querySelector('[data-m]');
+    if (!rc) return msg(m, 'Still loading, try again in a moment.');
+    try {
+      await api('POST', '/settings/receipt', { ...rc.receipt, logo: rcLogo });
+      rc.receipt.logo = rcLogo;
+      msg(m, 'Logo saved. Tablets print it after their next sync.', true); loadBrand();
+    } catch (err) { msg(m, err.message); }
+  };
+
+  // ------------------------------------------------------------------- home
+  async function loadHome() {
+    const parts = [];
+    const tiles = [], left = [], right = [];
+    const hour = Number(new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
+    $('pgTitle').textContent = `${hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'}, ${(me.userName || '').split(' ')[0]}`;
+    const today = istDate(new Date()), yday = istDate(new Date(Date.now() - 864e5));
+    if (canAny('credit.approve', 'stock.adjust')) parts.push((async () => {
+      const credit = can('credit.approve') ? await api('GET', '/approvals?status=pending') : [];
+      const adj = can('stock.adjust') ? await api('GET', '/stock/adjustments?status=pending') : [];
+      const n = credit.length + adj.length;
+      tiles.push([0, 'Waiting for you', String(n), `${credit.length} credit · ${adj.length} stock`, n ? 'warn' : '']);
+      const rows = [
+        ...credit.map((a) => [`<span class="tag info">Credit</span>`, `${esc(a.location_name || '')} · ${esc(a.customer_name || 'Customer')} over the limit`, inr(a.bill_amount || 0)]),
+        ...adj.map((a) => [`<span class="tag warn">Stock</span>`, `${esc(a.location_code)} · ${esc(a.item_name)} ${a.qty > 0 ? '+' : ''}${qn(a.qty)} ${esc(REASONS[a.reason] || '')}${a.needs_owner ? ' · needs Owner' : ''}`, inr(a.value)])];
+      left.push([0, `<div class="card"><div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Waiting for your decision</b>
+        <button class="ghost" type="button" data-home-go="approvals" style="padding:8px 12px">Open Approvals</button></div>
+        ${rows.length ? rows.slice(0, 8).map(([t, x, v]) => `<div class="lrow">${t}<div class="grow">${x}</div><b>${v}</b></div>`).join('') : '<div class="muted" style="margin-top:8px">Nothing waiting.</div>'}</div>`]);
+    })());
+    if (can('report.all')) parts.push((async () => {
+      const r = await api('GET', `/reports/sales?from=${today}&to=${today}`);
+      tiles.push([1, 'Sales today so far', inr(r.total.sales), `${r.total.bills} bills`, '']);
+      const max = Math.max(1, ...r.outlets.map((o) => o.sales));
+      right.push([0, `<div class="card"><div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Sales today</b>
+        <button class="ghost" type="button" data-home-go="sales" style="padding:8px 12px">Open Sales</button></div>
+        ${r.outlets.map((o) => `<div class="row" style="align-items:center;margin-top:10px"><b style="width:44px">${esc(o.code)}</b>
+          <div class="bar"><i style="width:${Math.round(o.sales / max * 100)}%"></i></div><b style="width:90px;text-align:right">${inr(o.sales)}</b></div>`).join('')}</div>`]);
+    })());
+    if (can('stock.view.all')) parts.push((async () => {
+      await stockMeta();
+      const p = await api('GET', '/stock/position');
+      let neg = 0, low = 0;
+      const outs = p.locations.filter((l) => l.kind === 'outlet' || l.kind === 'franchise');
+      for (const i of p.items) for (const l of p.locations) {
+        const q = i.qty[l.id] || 0;
+        if (q < 0) neg++; else if (outs.includes(l) && i.reorder_level != null && q > 0 && q < i.reorder_level) low++;
+      }
+      tiles.push([2, 'Stock alerts', `${neg} · ${low}`, 'in minus · below reorder level', neg ? 'warn' : '']);
+    })());
+    if (canAny('stock.dispatch', 'stock.return.confirm')) parts.push((async () => {
+      const list = await api('GET', '/stock/transfers?days=1');
+      const ret = list.filter((t) => t.kind === 'return' && t.status === 'dispatched' && inScopeLoc(t.to_id));
+      const disp = list.filter((t) => t.kind === 'dispatch' && t.status !== 'cancelled');
+      tiles.push([3, 'Dispatches today', String(disp.filter((t) => t.status !== 'draft').length), `${disp.filter((t) => t.status === 'dispatched').length} on the way · ${ret.length} returns to confirm`, ret.length ? 'warn' : '']);
+      right.push([1, `<div class="card"><div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Dispatches today</b>
+        ${can('stock.dispatch') ? '<button class="primary" type="button" data-home-go="dispatch" style="padding:8px 12px">New dispatch</button>' : ''}</div>
+        ${disp.length ? disp.map((t) => `<div class="lrow"><div class="grow"><b>${esc(t.to_code)}</b> <span class="muted">${esc(t.to_name)} · ${qn(t.sent)} pcs</span></div>${statusTag(t)}</div>`).join('') : '<div class="muted" style="margin-top:8px">Nothing sent yet today.</div>'}
+        ${ret.length ? `<div class="msg err" style="margin-bottom:0">${ret.length} return(s) from counters to confirm</div>` : ''}</div>`]);
+    })());
+    if (canAny('audit.view', 'audit.verify')) parts.push((async () => {
+      const w = await api('GET', '/audit/overview?days=2');
+      const yWaiting = w.filter((o) => (o.waiting_days || []).some((d) => String(d).slice(0, 10) === yday));
+      tiles.push([4, 'Audit, yesterday', `${w.length - yWaiting.length} of ${w.length}`, 'outlets checked', yWaiting.length ? 'warn' : '']);
+      left.push([1, `<div class="card"><div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Audit</b>
+        <button class="${can('audit.verify') ? 'primary' : 'ghost'}" type="button" data-home-go="audit" style="padding:8px 12px">${can('audit.verify') ? 'Start audit' : 'Open Audit'}</button></div>
+        ${w.map((o) => `<div class="lrow"><div class="grow"><b>${esc(o.code)}</b> <span class="muted">${esc(o.name)}</span></div>
+          ${o.waiting ? `<span class="tag warn">${o.waiting} waiting</span>` : '<span class="tag ok">Up to date</span>'}${o.query ? ` <span class="tag warn">${o.query} query</span>` : ''}</div>`).join('')}</div>`]);
+    })());
+    if (can('stock.count') && !can('stock.view.all')) tiles.push([5, 'Stock count', 'Count', 'any outlet, from your phone', '']);
+    await Promise.allSettled(parts);
+    const tileCls = (c) => c === 'warn' ? ' style="color:var(--amber)"' : '';
+    $('hmTiles').innerHTML = tiles.sort((a, b) => a[0] - b[0]).map(([, l, v, n, c]) =>
+      `<div class="tile"><span class="muted">${esc(l)}</span><b${tileCls(c)}>${esc(v)}</b><span class="muted">${esc(n)}</span></div>`).join('')
+      || '<div class="card muted">Use the menu to start.</div>';
+    $('hmLeft').innerHTML = left.sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('');
+    $('hmRight').innerHTML = right.sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('');
+  }
+  $('tab-home').onclick = (e) => { const b = e.target.closest('[data-home-go]'); if (b) go(b.dataset.homeGo); };
 
   // ------------------------------------------------------------ approvals
   let timer = null;
@@ -584,6 +829,8 @@
       const list = can('credit.approve') ? await api('GET', '/approvals?status=pending') : [];
       $('badge').textContent = list.length + adj.length;
       $('badge').classList.toggle('hidden', list.length + adj.length === 0);
+      $('badge2').textContent = list.length + adj.length;
+      $('badge2').classList.toggle('hidden', list.length + adj.length === 0);
       msg($('apMsg'), '');
       drawAdjustments(adj);
       if (!can('credit.approve')) { $('apList').innerHTML = ''; return; }
@@ -1651,7 +1898,7 @@
           <div class="grow"><b>${esc(r.name)}</b>${r.locked ? ' <span class="tag off">Locked</span>' : ''}${r.is_active ? '' : ' <span class="tag off">Switched off</span>'}<br>
             <span class="muted">${r.all_locations ? 'All locations' : 'One location per login'} · ${r.permissions.includes('*') ? 'everything' : r.permissions.length + ' permissions'} · ${r.users} login${r.users === 1 ? '' : 's'}</span></div>
           ${r.locked ? '' : '<span class="muted">Edit ›</span>'}</div>`).join('');
-    } catch (err) { msg($('uMsg'), err.message); }
+    } catch (err) { msg($('stMsg'), err.message); }
   }
   $('rlList').onclick = (e) => {
     const el = e.target.closest('[data-rl]'); if (!el) return;
@@ -1690,7 +1937,7 @@
       const body = { name: f.name.value, allLocations: f.all.value === '1',
         permissions: [...f.querySelectorAll('input[name=p]:checked')].map((x) => x.value) };
       if (r && !copy) { body.code = r.code; body.isActive = f.active.checked; }
-      try { await api('POST', '/admin/roles', body); $('rlEdit').innerHTML = ''; msg($('uMsg'), 'User type saved.', true); loadUsers(); }
+      try { await api('POST', '/admin/roles', body); $('rlEdit').innerHTML = ''; msg($('stMsg'), 'User type saved.', true); loadUsers(); }
       catch (err) { msg(f.querySelector('[data-m]'), err.message); }
     };
   }
@@ -2182,16 +2429,32 @@
       me = await api('GET', '/auth/me');
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
-    const need = { approvals: ['credit.approve', 'stock.adjust'], sales: ['report.all'], dispatch: ['stock.dispatch', 'stock.return.confirm'],
+    $('avatar').textContent = (me.userName || '?').trim().charAt(0).toUpperCase();
+    $('whoRole').textContent = (me.permissions || []).includes('*') ? 'Owner' : (me.locations ? me.locations.length + ' location(s)' : 'All locations');
+    const need = { home: [], approvals: ['credit.approve', 'stock.adjust'], sales: ['report.all'], dispatch: ['stock.dispatch', 'stock.return.confirm'],
       stock: ['stock.view.all'], count: ['stock.count'], audit: ['audit.view', 'audit.verify'], customers: ['customer.edit'],
-      types: ['rates.manage'], rates: ['rates.manage'], items: ['rates.manage'], tally: ['accounts.export'], users: ['users.manage'],
-      receipt: ['settings.manage'], settings: ['settings.manage'], code: ['credit.approve'] };
-    document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !canAny(...need[b.dataset.tab])));
+      types: ['rates.manage'], rates: ['rates.manage'], items: ['rates.manage'], tally: ['accounts.export'],
+      settings: ['settings.manage', 'users.manage', 'accounts.export'] };
+    document.querySelectorAll('.menu button').forEach((b) => b.classList.toggle('hidden', need[b.dataset.tab].length > 0 && !canAny(...need[b.dataset.tab])));
+    // hide a group heading when nothing under it is visible
+    const hideEmpty = (box, sel) => {
+      let head = null, any = false;
+      const close = () => { if (head) head.classList.toggle('hidden', !any); };
+      for (const el of box.children) {
+        if (el.classList.contains('grp')) { close(); head = el; any = false; }
+        else if (el.matches(sel) && !el.classList.contains('hidden')) any = true;
+      }
+      close();
+    };
+    hideEmpty(document.querySelector('.menu'), 'button');
+    document.querySelectorAll('#stNav button[data-st]').forEach((b) => { if (ST_NEED[b.dataset.st]) b.classList.toggle('hidden', !can(ST_NEED[b.dataset.st])); });
+    hideEmpty($('stNav'), 'button');
+    $('toCode').classList.toggle('hidden', !can('credit.approve'));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
-    const first = document.querySelector('nav button:not(.hidden)');
-    if (!first) { $('tab-approvals').innerHTML = '<div class="card">This login has nothing to do on the head-office page. Use the tablet app.</div>'; return; }
-    first.click();
+    loadBrand();
+    go('home');
+    if (canAny('credit.approve', 'stock.adjust')) loadApprovals();
     clearInterval(timer);
     if (canAny('credit.approve', 'stock.adjust')) timer = setInterval(() => { if (!document.hidden) loadApprovals(); }, 20000);
   }

@@ -62,6 +62,18 @@ interface BusinessBody {
 export class SettingsController {
   constructor(private readonly db: Db) {}
 
+  /** Company name and logo for the head-office page's menu (any login). */
+  @Get('brand')
+  brand(@Req() req: any) {
+    const s: Session = req.session;
+    return this.db.tx(s.tenantId, async (c) => {
+      const r = await receiptSettings(c);
+      const co = (await c.query(
+        'SELECT legal_name, brand_name FROM company WHERE deleted_at IS NULL ORDER BY code LIMIT 1')).rows[0];
+      return { name: co?.brand_name || co?.legal_name || '', company: co?.legal_name || '', logo: r.value?.logo ?? null };
+    });
+  }
+
   @Get('receipt')
   @Needs('settings.manage')
   async get(@Req() req: any) {
