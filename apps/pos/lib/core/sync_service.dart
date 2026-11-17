@@ -21,6 +21,8 @@ class SyncService extends ChangeNotifier {
   Future<void> Function()? onMastersChanged;
   /// Called when the server refuses this login (expired, or switched off by head office).
   Future<void> Function(String message)? onLoggedOut;
+  /// Called after bills are pushed: sends stock requests kept while offline.
+  Future<void> Function()? afterPush;
 
   Timer? _timer;
   bool _running = false;
@@ -65,6 +67,7 @@ class SyncService extends ChangeNotifier {
     _running = true;
     try {
       await _pushAll();
+      if (afterPush != null) await afterPush!();
       final changed = await _pull();
       online = true;
       lastError = null;

@@ -16,6 +16,23 @@ export interface Session {
   deviceId: string | null;
   locationId: string | null;
   permissions: string[];
+  /** Locations this login may act for: null = all of them. A tablet is its own outlet. */
+  locations?: string[] | null;
+}
+
+/** Locations a session may act for (null = all). Older tokens carry no list. */
+export function scopeOf(s: Session): string[] | null {
+  if (s.locations !== undefined) return s.locations;
+  return s.locationId ? [s.locationId] : null;
+}
+
+export function inScope(s: Session, locationId: string): boolean {
+  const sc = scopeOf(s);
+  return sc === null || sc.includes(locationId);
+}
+
+export function can(s: Session, perm: string): boolean {
+  return s.permissions.includes('*') || s.permissions.includes(perm);
 }
 
 export const NEEDS = 'needs-permission';
@@ -111,7 +128,8 @@ export async function verifyApprover(c: any, tenantId: string, phone: string, pi
   failures.delete(key);
   const perms = (await c.query(
     `SELECT DISTINCT unnest(r.permissions) AS p FROM user_role ur JOIN role r ON r.id = ur.role_id
-      WHERE ur.user_id = $1 AND ur.deleted_at IS NULL AND (ur.location_id IS NULL OR ur.location_id = $2)`,
+      WHERE ur.user_id = $1 AND ur.deleted_at IS NULL AND r.is_active AND r.deleted_at IS NULL
+        AND (ur.location_id IS NULL OR r.all_locations OR ur.location_id = $2)`,
     [u.id, locationId])).rows.map((r: any) => r.p as string);
   if (!perms.includes('*') && !perms.includes(perm)) throw new ForbiddenException(`${u.name} cannot approve this`);
   return { id: u.id as string, name: u.name as string };
@@ -184,26 +202,32 @@ export class AuthController {
         if (!device) throw new UnauthorizedException('This tablet is not registered');
       }
 
-      // Permissions from roles valid everywhere or at this device's location
-      const perms = (await c.query(
-        `SELECT DISTINCT unnest(r.permissions) AS p
+      // Tablet: roles valid at its outlet. Head-office page / phone: every role
+      // the user holds, limited to the locations those roles are for.
+      const roles = (await c.query(
+        `SELECT r.permissions, r.all_locations, ur.location_id
            FROM user_role ur JOIN role r ON r.id = ur.role_id
-          WHERE ur.user_id = $1 AND ur.deleted_at IS NULL
-            AND (ur.location_id IS NULL OR ur.location_id = $2)`,
-        [user.id, device?.location_id ?? null])).rows.map((r) => r.p as string);
+          WHERE ur.user_id = $1 AND ur.deleted_at IS NULL AND r.is_active AND r.deleted_at IS NULL
+            AND ($2::uuid IS NULL OR ur.location_id IS NULL OR r.all_locations OR ur.location_id = $2)`,
+        [user.id, device?.location_id ?? null])).rows;
+      const perms = [...new Set(roles.flatMap((r) => r.permissions as string[]))];
       if (device && !perms.includes('*') && !perms.includes('bill.create')) {
         throw new ForbiddenException('No billing permission at this outlet');
       }
+      let locations: string[] | null;
+      if (device) locations = [device.location_id];
+      else if (roles.some((r) => r.all_locations || !r.location_id)) locations = null;
+      else locations = [...new Set(roles.map((r) => r.location_id as string))];
 
       const session: Session = {
         tenantId: tenant.id, userId: user.id, userName: user.name,
-        deviceId: device?.id ?? null, locationId: device?.location_id ?? null, permissions: perms,
+        deviceId: device?.id ?? null, locationId: device?.location_id ?? null, permissions: perms, locations,
       };
       const token = jwt.sign(session, config.jwtSecret, { expiresIn: `${config.tokenHours}h` });
       if (device) await c.query('UPDATE device SET last_seen_at = now() WHERE id = $1', [device.id]);
       return {
         token,
-        user: { id: user.id, name: user.name, permissions: perms },
+        user: { id: user.id, name: user.name, permissions: perms, locations },
         tenant: { id: tenant.id, name: tenant.name },
         device: device && {
           id: device.id, code: device.code, locationId: device.location_id,

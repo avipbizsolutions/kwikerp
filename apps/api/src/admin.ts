@@ -45,10 +45,10 @@ export class AdminController {
           WHERE u.deleted_at IS NULL
           GROUP BY u.id ORDER BY u.is_active DESC, u.name`)).rows,
       roles: (await c.query(
-        `SELECT code, name, permissions FROM role WHERE deleted_at IS NULL
-          ORDER BY array_position(ARRAY['OWNER','MANAGER','OUTLET','CASHIER'], code), name`)).rows,
+        `SELECT code, name, permissions, all_locations, is_active FROM role WHERE deleted_at IS NULL
+          ORDER BY code = 'OWNER' DESC, created_at, name`)).rows,
       locations: (await c.query(
-        `SELECT code, name FROM location WHERE deleted_at IS NULL AND kind IN ('outlet','franchise','plant') ORDER BY code`)).rows,
+        `SELECT code, name, kind FROM location WHERE deleted_at IS NULL AND is_active ORDER BY code`)).rows,
       devices: (await c.query(
         `SELECT d.id, l.code AS location, d.code, d.name, d.is_active, d.last_seen_at
            FROM device d JOIN location l ON l.id = d.location_id
@@ -78,7 +78,7 @@ export class AdminController {
       // Resolve roles and outlets
       const wanted: { roleId: string; code: string; locationId: string | null }[] = [];
       for (const r of b.roles) {
-        const role = (await c.query('SELECT id, code FROM role WHERE code = $1 AND deleted_at IS NULL',
+        const role = (await c.query('SELECT id, code, name, all_locations, is_active FROM role WHERE code = $1 AND deleted_at IS NULL',
           [(r.role ?? '').toUpperCase()])).rows[0];
         if (!role) throw new BadRequestException(`Unknown role ${r.role}`);
         let locationId: string | null = null;
@@ -88,9 +88,11 @@ export class AdminController {
           if (!l) throw new BadRequestException(`Unknown outlet ${r.location}`);
           locationId = l.id;
         }
-        if (role.code !== 'OWNER' && role.code !== 'MANAGER' && !locationId) {
-          throw new BadRequestException('Choose the outlet for cashier and outlet manager logins');
+        if (!role.is_active) throw new BadRequestException(`User type ${role.name} is switched off`);
+        if (!role.all_locations && !locationId) {
+          throw new BadRequestException(`Choose the location for the ${role.name} login`);
         }
+        if (role.all_locations) locationId = null;
         wanted.push({ roleId: role.id, code: role.code, locationId });
       }
       if (b.id === s.userId && !wanted.some((w) => w.code === 'OWNER') && s.permissions.includes('*')) {

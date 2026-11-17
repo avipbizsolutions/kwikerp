@@ -13,6 +13,7 @@ import 'rates_screen.dart';
 import 'types_screen.dart';
 import 'dialogs.dart';
 import 'shift_screens.dart';
+import 'stock_screen.dart';
 import 'theme.dart';
 
 /// Billing screen, laid out for a tablet standing upright at the counter
@@ -245,6 +246,8 @@ class _TopBar extends StatelessWidget {
               await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RatesScreen()));
             } else if (v == 'types') {
               await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomerTypesScreen()));
+            } else if (v == 'stock') {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StockScreen()));
             } else if (v == 'bills') {
               await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillsScreen()));
             } else if (v == 'printer') {
@@ -263,6 +266,7 @@ class _TopBar extends StatelessWidget {
           itemBuilder: (_) => [
             if (s.canManageRates) const PopupMenuItem(value: 'rates', child: Text('Rate chart')),
             if (s.canManageRates) const PopupMenuItem(value: 'types', child: Text('Customer types')),
+            if (s.canStock) const PopupMenuItem(value: 'stock', child: Text('Stock · receive, return, count')),
             const PopupMenuItem(value: 'bills', child: Text('Bills · reprint or cancel')),
             const PopupMenuItem(value: 'printer', child: Text('Printer')),
             const PopupMenuItem(value: 'reprint', child: Text('Reprint last bill')),

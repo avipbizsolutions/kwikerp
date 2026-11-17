@@ -148,6 +148,7 @@ class PosState extends ChangeNotifier {
     sync?.dispose();
     final s = SyncService(db, Api(serverUrl!, token: token));
     s.onMastersChanged = reloadCatalog;
+    s.afterPush = flushStock;
     s.onLoggedOut = (m) async {
       logoutReason = m;
       await logout();
@@ -559,6 +560,80 @@ class PosState extends ChangeNotifier {
 
   /// Online calls for the manager screens.
   Api get onlineApi => Api(serverUrl!, token: token);
+
+  // ----------------------------------------------------------------- stock
+
+  bool can(String perm) => _can(perm);
+  bool get canStock => _can('stock.receive') || _can('stock.count') || _can('stock.adjust.request');
+
+  /// Biggest pack (tray, box) of an item, or 0 when it is sold loose only.
+  double packFactor(Item item) {
+    var f = 0.0;
+    for (final p in catalog?.packsFor(item) ?? const <(String, double)>[]) {
+      if (p.$2 > 1 && p.$2 > f) f = p.$2;
+    }
+    return f;
+  }
+
+  int stockQueued = 0;
+  String? stockQueueError;
+
+  Future<List<Map<String, dynamic>>> _stockQueue() async {
+    final raw = await db.get('stock_outbox');
+    if (raw == null || raw.isEmpty) return [];
+    return (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Sends a stock request (receipt, return, adjustment) now. With no internet
+  /// it is kept on the tablet and sent with the next sync; returns null then.
+  /// Each request carries its own id, so sending it twice does no harm.
+  Future<dynamic> sendStock(String path, Map<String, dynamic> body, String label) async {
+    await flushStock();
+    try {
+      return await onlineApi.postJson(path, body);
+    } on ApiException catch (e) {
+      if (e.status < 500) rethrow;
+    } catch (_) {
+      // no internet: keep it
+    }
+    final q = await _stockQueue();
+    q.add({'path': path, 'body': body, 'label': label});
+    await db.set('stock_outbox', jsonEncode(q));
+    stockQueued = q.length;
+    notifyListeners();
+    return null;
+  }
+
+  bool _flushingStock = false;
+  Future<void> flushStock() async {
+    if (_flushingStock || token == null || serverUrl == null) return;
+    _flushingStock = true;
+    try {
+      var q = await _stockQueue();
+      while (q.isNotEmpty) {
+        final job = q.first;
+        var drop = true;
+        try {
+          await onlineApi.postJson(job['path'] as String, job['body'] as Object);
+        } on ApiException catch (e) {
+          if (e.status == 401 || e.status >= 500) {
+            drop = false;
+          } else {
+            stockQueueError = '${job['label']}: ${e.message}';
+          }
+        } catch (_) {
+          drop = false; // still offline
+        }
+        if (!drop) break;
+        q = q.sublist(1);
+        await db.set('stock_outbox', jsonEncode(q));
+      }
+      stockQueued = q.length;
+    } finally {
+      _flushingStock = false;
+      notifyListeners();
+    }
+  }
 
   bool get canCancelBills {
     final p = (user?['permissions'] as List?)?.cast<String>() ?? const [];

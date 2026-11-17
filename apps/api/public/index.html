@@ -63,6 +63,19 @@
     body { background: #fff; } .card { border: 0; padding: 0; } main { padding: 0; }
   }
   .inline { background: var(--ground); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  #skGrid table { border-collapse: separate; border-spacing: 0; }
+  #skGrid th:first-child, #skGrid td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 1px 0 0 var(--line); min-width: 170px; }
+  #skGrid thead th { position: sticky; top: 0; background: #f6f8fa; z-index: 2; }
+  #skGrid thead th:first-child { z-index: 3; }
+  #skGrid td[data-loc] { cursor: pointer; }
+  .low { color: var(--amber); font-weight: 700; } .neg { color: var(--red); font-weight: 700; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+  .tag.ok { background: var(--greenbg); color: var(--green); } .tag.warn { background: var(--amberbg); color: var(--amber); }
+  .tag.info { background: var(--tint); color: var(--navy); } .tag.off { background: var(--ground); color: var(--muted); }
+  .perm { display: flex; gap: 8px; align-items: center; margin: 6px 0; color: var(--ink); font-size: 14px; }
+  .perm input { width: auto; }
+  .cnt td { padding: 6px; } .cnt input { width: 90px; font-size: 18px; font-weight: 700; padding: 8px; text-align: right; }
+  td.l, th.l { text-align: left; }
 </style>
 </head>
 <body>
@@ -92,6 +105,10 @@
   <nav>
     <button data-tab="approvals" class="on">Approvals<span id="badge" class="badge hidden"></span></button>
     <button data-tab="sales">Sales</button>
+    <button data-tab="dispatch">Dispatch</button>
+    <button data-tab="stock">Stock</button>
+    <button data-tab="count">Count</button>
+    <button data-tab="audit">Audit</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="types">Customer types</button>
     <button data-tab="rates">Rates</button>
@@ -99,13 +116,15 @@
     <button data-tab="tally">Tally</button>
     <button data-tab="users">Users</button>
     <button data-tab="receipt">Receipt</button>
+    <button data-tab="settings">Settings</button>
     <button data-tab="code">Code</button>
   </nav>
   <main>
     <div id="tab-approvals">
       <div id="apMsg"></div>
+      <div id="apStock"></div>
       <div id="apList"></div>
-      <p class="muted">Refreshes every 20 seconds. Credit bills over the customer's limit wait here until you decide.</p>
+      <p class="muted">Refreshes every 20 seconds. Credit bills over the customer's limit and stock adjustments wait here until you decide.</p>
     </div>
 
     <div id="tab-sales" class="hidden">
@@ -178,10 +197,16 @@
 
     <div id="tab-users" class="hidden">
       <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">User types</b>
+          <button class="ghost" type="button" id="rlAdd">+ Add user type</button></div>
+        <p class="muted">What each type of login may do. Changes apply when the person next logs in. Owner is locked.</p>
+        <div id="rlList"></div>
+      </div>
+      <div id="rlEdit"></div>
+      <div class="card">
         <div class="row"><b class="grow" style="font-size:16px">Staff logins</b>
           <button class="primary" type="button" id="uAdd">Add login</button></div>
-        <p class="muted">Cashier: bills at one outlet. Outlet manager: also cancels bills and approves cancellations there.
-          Manager: all outlets, credit approvals, reports. Owner: everything.</p>
+        <p class="muted">Each login has a user type. Types that work at one location (Cashier, Store Manager, Dispatch) need the location.</p>
       </div>
       <div id="uEdit"></div>
       <div id="uMsg"></div>
@@ -317,6 +342,147 @@
       <input type="file" id="phOne" accept="image/*" style="display:none">
     </div>
 
+
+    <div id="tab-dispatch" class="hidden">
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px" id="dpTitle">New dispatch</b>
+          <button class="ghost" type="button" id="dpNew">Start again</button></div>
+        <form id="dpForm">
+          <div class="row">
+            <div class="grow" style="flex-basis:170px"><label for="dpFrom">From</label><select name="from" id="dpFrom"></select></div>
+            <div class="grow" style="flex-basis:170px"><label for="dpTo">Send to</label><select name="to" id="dpTo"></select></div>
+          </div>
+          <div class="row">
+            <div class="grow" style="flex-basis:150px"><label>Vehicle</label><input name="vehicle" style="text-transform:uppercase"></div>
+            <div class="grow" style="flex-basis:150px"><label>Driver / delivery boy</label><input name="driver"></div>
+          </div>
+          <label for="dpFind">Add item</label>
+          <div class="row" style="align-items:center">
+            <input id="dpFind" list="dpItems" class="grow" style="flex-basis:220px" placeholder="Type item name or code" autocomplete="off">
+            <button class="ghost" type="button" id="dpCopy" style="flex:0 0 auto">Copy last list for this counter</button>
+          </div>
+          <datalist id="dpItems"></datalist>
+          <div class="scroll" style="margin-top:10px"><table id="dpLines"></table></div>
+          <div class="muted" id="dpTotal" style="margin-top:6px"></div>
+          <label>Note</label><input name="note">
+          <div class="actions">
+            <button class="primary" type="submit" data-send="1">Send and print challan</button>
+            <button class="ghost" type="submit" data-send="0">Save draft</button>
+          </div>
+          <div data-m></div>
+        </form>
+      </div>
+      <div id="dpView"></div>
+      <div class="card"><b style="font-size:16px">Returns from counters to confirm</b><div id="dpReturns"></div></div>
+      <div class="card">
+        <div class="row" style="align-items:center"><b class="grow" style="font-size:16px">Dispatches and returns</b>
+          <select id="dpDays" style="width:auto"><option value="1">Today</option><option value="7" selected>7 days</option><option value="31">31 days</option></select></div>
+        <div id="dpList"></div>
+      </div>
+    </div>
+
+    <div id="tab-stock" class="hidden">
+      <div class="card">
+        <div class="row" style="align-items:flex-end">
+          <div class="grow" style="flex-basis:200px"><label for="skQ">Find item</label><input id="skQ" placeholder="Name or code" autocomplete="off"></div>
+          <div style="flex:0 0 190px"><label for="skCat">Item group</label><select id="skCat"></select></div>
+          <div style="flex:0 0 160px"><label for="skMode">Show</label><select id="skMode"><option value="qty">Pieces</option><option value="value">Value at MRP</option></select></div>
+        </div>
+        <div class="actions">
+          <label style="display:flex;gap:8px;align-items:center;flex:2 1 260px;margin:0;color:var(--ink);font-weight:600"><input type="checkbox" id="skLow" style="width:auto"> Only below reorder level or in minus</label>
+          <button class="ghost" type="button" id="skXls">Download Excel</button>
+          <button class="ghost" type="button" id="skRefresh">Refresh</button>
+        </div>
+      </div>
+      <div class="tiles" id="skTiles"></div>
+      <div id="skMsg"></div>
+      <div class="card" style="padding:0;max-height:70vh;overflow:auto"><div id="skGrid"></div></div>
+      <div id="skMoves"></div>
+      <p class="muted">Orange: below the reorder level. Red: in minus (sold more than the system had; the bill went through and shows here).
+        Click a number to see that item's movements there. Plant stock shows only goods sent and returned until production entry is added.</p>
+    </div>
+
+    <div id="tab-count" class="hidden">
+      <div class="card">
+        <b style="font-size:16px">Stock count</b>
+        <p class="muted" style="margin:4px 0 0">Count what is on the shelf and type the number. The system's quantity stays hidden until you finish.
+          Leave an item empty if you did not count it. Each difference goes for approval before stock changes.</p>
+        <div class="row">
+          <div class="grow" style="flex-basis:160px"><label for="cnLoc">Location</label><select id="cnLoc"></select></div>
+          <div class="grow" style="flex-basis:160px"><label for="cnCat">Item group</label><select id="cnCat"></select></div>
+        </div>
+        <label for="cnQ">Find item</label><input id="cnQ" placeholder="Name or code" autocomplete="off">
+      </div>
+      <div class="card" style="padding:4px 10px"><table class="cnt" id="cnList"></table></div>
+      <div class="card" style="position:sticky;bottom:0;z-index:2">
+        <div class="row" style="align-items:center"><span id="cnCount" class="grow muted"></span>
+          <button class="ghost" type="button" id="cnClear" style="padding:10px 12px">Clear</button>
+          <button class="primary" type="button" id="cnFinish">Finish and see differences</button></div>
+        <div id="cnMsg"></div>
+      </div>
+      <div id="cnResult"></div>
+      <div class="card"><b style="font-size:16px">Recent counts</b><div id="cnRecent"></div></div>
+    </div>
+
+    <div id="tab-audit" class="hidden">
+      <div class="card">
+        <div class="row" style="align-items:flex-end">
+          <div class="grow" style="flex-basis:170px"><label for="auLoc">Outlet</label><select id="auLoc"></select></div>
+          <div class="grow" style="flex-basis:150px"><label for="auDate">Date</label><input id="auDate" type="date"></div>
+          <div style="flex:0 0 auto"><button class="primary" type="button" id="auShow">Show</button></div>
+        </div>
+      </div>
+      <div id="auMsg"></div>
+      <div id="auDay"></div>
+      <div class="card"><b style="font-size:16px">Last 7 days, all outlets</b><div id="auWeek"></div></div>
+      <div class="card">
+        <b style="font-size:16px">Audit reports for Owners and Managers</b>
+        <div class="row" style="align-items:flex-end">
+          <div class="grow" style="flex-basis:220px"><label for="arType">Report</label><select id="arType">
+            <option value="daily">Daily outlet audit</option>
+            <option value="stock_diff">Stock count differences</option>
+            <option value="adjustments">Adjustments by reason</option>
+            <option value="dispatch">Dispatch vs receipt</option>
+            <option value="cash">Cash short/extra and cancellations by cashier</option></select></div>
+          <div class="grow" style="flex-basis:140px"><label for="arFrom">From</label><input id="arFrom" type="date"></div>
+          <div class="grow" style="flex-basis:140px"><label for="arTo">To</label><input id="arTo" type="date"></div>
+        </div>
+        <div class="actions">
+          <button class="primary" type="button" id="arShow">Show</button>
+          <button class="ghost" type="button" id="arXls">Download Excel</button>
+          <button class="ghost" type="button" id="arWa">Send summary on WhatsApp</button>
+        </div>
+        <div id="arOut"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="hidden">
+      <div id="stMsg"></div>
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">Company (entity) details</b>
+          <button class="ghost" type="button" id="stCoAdd">+ Add another company</button></div>
+        <p class="muted" style="margin:4px 0 0">Printed on bills, challans and the Tally export. The receipt layout stays under Receipt.</p>
+        <div id="stCo"></div>
+      </div>
+      <div id="stCoEdit"></div>
+      <div class="card">
+        <div class="row"><b class="grow" style="font-size:16px">Locations</b>
+          <button class="primary" type="button" id="stLocAdd">+ Add location</button></div>
+        <p class="muted" style="margin:4px 0 0">Plant, godown, outlet or franchise. A location set to "Sends goods" appears in Dispatch's
+          "From" list, so a godown can dispatch too. The code goes into document numbers and is fixed once used.</p>
+        <div class="scroll" id="stLoc"></div>
+      </div>
+      <div id="stLocEdit"></div>
+      <div class="card">
+        <b style="font-size:16px">Approval limits</b>
+        <form id="stLim">
+          <label>Stock adjustments worth more than this need the Owner (₹)</label><input name="ownerAbove" inputmode="decimal">
+          <label>Value stock at this rate list (MRP)</label><select name="mrpLevel"></select>
+          <div class="actions"><button class="primary" type="submit">Save limits</button></div>
+          <div data-m></div>
+        </form>
+      </div>
+    </div>
     <div id="tab-code" class="hidden">
       <div class="card">
         <div class="muted">For an outlet with no internet. The cashier reads out what the tablet's approval screen shows.</div>
@@ -346,6 +512,8 @@
   };
   let token = store.get('kwik_token');
   let me = null;
+  const can = (p) => !!me && ((me.permissions || []).includes('*') || (me.permissions || []).includes(p));
+  const canAny = (...ps) => ps.some(can);
   const inr = (v, paise) => '₹' + Number(v || 0).toLocaleString('en-IN', {
     minimumFractionDigits: paise ? 2 : 0, maximumFractionDigits: paise ? 2 : 0 });
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -389,8 +557,14 @@
   // ----------------------------------------------------------------- tabs
   document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    ['approvals', 'sales', 'customers', 'types', 'rates', 'items', 'tally', 'users', 'receipt', 'code'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
-    document.querySelector('main').classList.toggle('wide', b.dataset.tab === 'rates');
+    ['approvals', 'sales', 'dispatch', 'stock', 'count', 'audit', 'customers', 'types', 'rates', 'items', 'tally', 'users', 'receipt', 'settings', 'code']
+      .forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    document.querySelector('main').classList.toggle('wide', b.dataset.tab === 'rates' || b.dataset.tab === 'stock');
+    if (b.dataset.tab === 'dispatch') openDispatch();
+    if (b.dataset.tab === 'stock') loadStock();
+    if (b.dataset.tab === 'count') openCount();
+    if (b.dataset.tab === 'audit') openAudit();
+    if (b.dataset.tab === 'settings') loadSettings();
     if (b.dataset.tab === 'sales') loadSales();
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'types') loadTypes();
@@ -406,11 +580,14 @@
   let timer = null;
   async function loadApprovals() {
     try {
-      const list = await api('GET', '/approvals?status=pending');
-      $('badge').textContent = list.length;
-      $('badge').classList.toggle('hidden', list.length === 0);
+      const adj = can('stock.adjust') ? await api('GET', '/stock/adjustments?status=pending') : [];
+      const list = can('credit.approve') ? await api('GET', '/approvals?status=pending') : [];
+      $('badge').textContent = list.length + adj.length;
+      $('badge').classList.toggle('hidden', list.length + adj.length === 0);
       msg($('apMsg'), '');
-      if (!list.length) { $('apList').innerHTML = '<div class="card muted">No bills waiting for approval.</div>'; return; }
+      drawAdjustments(adj);
+      if (!can('credit.approve')) { $('apList').innerHTML = ''; return; }
+      if (!list.length) { $('apList').innerHTML = '<div class="card muted">No credit bills waiting for approval.</div>'; return; }
       // Keep a form the manager is filling in.
       const open = document.activeElement && document.activeElement.closest && document.activeElement.closest('.card[data-id]');
       if (open) return;
@@ -651,6 +828,7 @@
     try {
       adm = await api('GET', '/admin/users');
       msg($('uMsg'), '');
+      loadRoles();
       const roleText = (u) => u.roles.map((r) => `${esc(r.roleName)}${r.location ? ' · ' + esc(r.location) : ''}`).join(', ') || 'no role';
       $('uList').innerHTML = adm.users.map((u) => `
         <div class="card" data-u="${esc(u.id)}" style="cursor:pointer${u.is_active ? '' : ';opacity:.55'}">
@@ -680,9 +858,9 @@
         <label>Mobile * (used to log in)</label><input name="phone" inputmode="tel" required value="${esc(u?.phone)}">
         <div class="row">
           <div class="grow" style="flex-basis:150px"><label>Role *</label><select name="role">
-            ${adm.roles.map((r) => `<option value="${esc(r.code)}"${r.code === r0.role ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></div>
-          <div class="grow" style="flex-basis:150px" data-loc><label>Outlet</label><select name="location">
-            <option value="">All outlets</option>
+            ${adm.roles.filter((r) => r.is_active || r.code === r0.role).map((r) => `<option value="${esc(r.code)}"${r.code === r0.role ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></div>
+          <div class="grow" style="flex-basis:150px" data-loc><label>Location</label><select name="location">
+            <option value="">All locations</option>
             ${adm.locations.map((l) => `<option value="${esc(l.code)}"${l.code === r0.location ? ' selected' : ''}>${esc(l.code)} · ${esc(l.name)}</option>`).join('')}</select></div>
         </div>
         ${u && u.roles.length > 1 ? `<div class="msg err">This login has ${u.roles.length} roles; saving keeps only the one chosen above.</div>` : ''}
@@ -695,10 +873,10 @@
       </form></div>`;
     const f = $('uForm');
     const syncLoc = () => {
-      const role = f.role.value;
-      f.querySelector('[data-loc]').style.display = role === 'OWNER' ? 'none' : '';
-      f.location.querySelector('option[value=""]').disabled = role === 'CASHIER' || role === 'OUTLET';
-      if ((role === 'CASHIER' || role === 'OUTLET') && !f.location.value) f.location.selectedIndex = 1;
+      const all = !!adm.roles.find((r) => r.code === f.role.value)?.all_locations;
+      f.querySelector('[data-loc]').style.display = all ? 'none' : '';
+      f.location.querySelector('option[value=""]').disabled = !all;
+      if (!all && !f.location.value) f.location.selectedIndex = 1;
     };
     f.role.onchange = syncLoc; syncLoc();
     $('uEdit').querySelector('[data-x=close]').onclick = () => { $('uEdit').innerHTML = ''; };
@@ -706,7 +884,7 @@
     f.onsubmit = async (e) => {
       e.preventDefault();
       const body = { name: f.name.value, phone: f.phone.value, isActive: f.isActive.checked,
-        roles: [{ role: f.role.value, location: f.role.value === 'OWNER' ? null : (f.location.value || null) }] };
+        roles: [{ role: f.role.value, location: adm.roles.find((r) => r.code === f.role.value)?.all_locations ? null : (f.location.value || null) }] };
       if (f.pin.value) body.pin = f.pin.value;
       if (u) body.id = u.id;
       try {
@@ -1398,20 +1576,624 @@
     } catch (err) { msg(form.querySelector('[data-m]'), err.message); }
   };
 
+  // ------------------------------------------------- shared stock helpers
+  let sm = null; // /stock/meta
+  async function stockMeta(force) {
+    if (!sm || force) sm = await api('GET', '/stock/meta');
+    return sm;
+  }
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+  const qn = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+  const inScopeLoc = (id) => !me.locations || me.locations.includes(id);
+  const locName = (id) => sm?.locations.find((l) => l.id === id);
+  const packText = (i, q) => {
+    if (!i.pack_factor || q < i.pack_factor) return qn(q);
+    const p = Math.floor(q / i.pack_factor), r = Math.round((q - p * i.pack_factor) * 1000) / 1000;
+    return `${qn(q)} <span class="muted">(${p} ${esc((i.pack_name || 'pack').toLowerCase())}${r ? ' + ' + qn(r) : ''})</span>`;
+  };
+  const statusTag = (t) => {
+    if (t.status === 'received') return t.has_difference ? '<span class="tag warn">Received with difference</span>' : '<span class="tag ok">Received</span>';
+    return { draft: '<span class="tag off">Draft</span>', dispatched: '<span class="tag info">On the way</span>',
+      cancelled: '<span class="tag off">Cancelled</span>' }[t.status] || esc(t.status);
+  };
+  async function sheet(name, head, rows, widths) {
+    await loadXlsx();
+    const ws = XLSX.utils.aoa_to_sheet([head, ...rows]);
+    if (widths) ws['!cols'] = widths.map((w) => ({ wch: w }));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.writeFile(wb, name);
+  }
+
+  const REASONS = { wastage: 'Wastage / spoilt', expired: 'Expired', broken: 'Broken / leaked', count: 'Count is different',
+    sample: 'Free sample / staff', other: 'Other' };
+  // -------------------------------------------- approvals: stock adjustments
+  function drawAdjustments(list) {
+    if (!can('stock.adjust')) { $('apStock').innerHTML = ''; return; }
+    const open = document.activeElement && document.activeElement.closest && document.activeElement.closest('.card[data-adj]');
+    if (open) return;
+    const owner = can('stock.adjust.any');
+    $('apStock').innerHTML = !list.length ? '' : `<b style="display:block;margin:4px 0 8px">Stock adjustments (${list.length})</b>` +
+      list.map((a) => `<div class="card" data-adj="${esc(a.id)}">
+        <div class="row"><div class="grow"><b style="font-size:17px">${esc(a.location_code)} · ${esc(a.item_name)} · ${a.qty > 0 ? '+' : ''}${qn(a.qty)}</b><br>
+          <span class="muted">${esc(REASONS[a.reason] || a.reason)}${a.note ? ' · ' + esc(a.note) : ''}</span><br>
+          <span class="muted">${esc(a.requested_by)}${a.device_code ? ' · tablet ' + esc(a.device_code) : ''} · ${when(a.requested_at)}</span></div>
+          <div style="text-align:right"><div class="big" style="font-size:22px">${inr(a.value)}</div>
+            <div class="muted">${esc(a.location_code)} this month ${inr(a.location_month_value)}</div>
+            ${a.same_reason_week > 2 ? `<div class="pill">${a.same_reason_week} times this week</div>` : ''}
+            ${a.needs_owner ? '<div class="pill">Needs the Owner</div>' : ''}</div></div>
+        ${a.needs_owner && !owner ? '<div class="muted" style="margin-top:6px">Above the limit: only the Owner can decide this.</div>' : `
+        <div class="actions"><button class="primary" data-adj-act="ok">Approve</button><button class="danger" data-adj-act="no">Reject…</button></div>
+        <div class="inline hidden" data-adj-form><label>Reason for rejecting (the outlet sees this)</label><input data-adj-note>
+          <div class="actions"><button class="danger" data-adj-act="no-go">Reject</button></div></div>`}
+        <div data-msg></div></div>`).join('');
+  }
+  $('apStock').onclick = async (e) => {
+    const b = e.target.closest('button[data-adj-act]'); if (!b) return;
+    const card = b.closest('[data-adj]');
+    if (b.dataset.adjAct === 'no') return card.querySelector('[data-adj-form]').classList.toggle('hidden');
+    const body = b.dataset.adjAct === 'ok' ? { approve: true } : { approve: false, note: card.querySelector('[data-adj-note]').value.trim() };
+    card.querySelectorAll('button').forEach((x) => x.disabled = true);
+    try {
+      const r = await api('POST', `/stock/adjustments/${card.dataset.adj}/decide`, body);
+      msg(card.querySelector('[data-msg]'), r.status === 'approved' ? 'Approved. Stock is changed.' : 'Rejected.', true);
+      setTimeout(loadApprovals, 1200);
+    } catch (err) { card.querySelectorAll('button').forEach((x) => x.disabled = false); msg(card.querySelector('[data-msg]'), err.message); }
+  };
+
+  // ------------------------------------------------------------- user types
+  let roles = null;
+  async function loadRoles() {
+    try {
+      roles = await api('GET', '/admin/roles');
+      $('rlList').innerHTML = roles.roles.map((r) => `
+        <div class="row" data-rl="${esc(r.code)}" style="align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer${r.is_active ? '' : ';opacity:.55'}">
+          <div class="grow"><b>${esc(r.name)}</b>${r.locked ? ' <span class="tag off">Locked</span>' : ''}${r.is_active ? '' : ' <span class="tag off">Switched off</span>'}<br>
+            <span class="muted">${r.all_locations ? 'All locations' : 'One location per login'} · ${r.permissions.includes('*') ? 'everything' : r.permissions.length + ' permissions'} · ${r.users} login${r.users === 1 ? '' : 's'}</span></div>
+          ${r.locked ? '' : '<span class="muted">Edit ›</span>'}</div>`).join('');
+    } catch (err) { msg($('uMsg'), err.message); }
+  }
+  $('rlList').onclick = (e) => {
+    const el = e.target.closest('[data-rl]'); if (!el) return;
+    const r = roles.roles.find((x) => x.code === el.dataset.rl);
+    if (!r.locked) editRole(r);
+  };
+  $('rlAdd').onclick = () => editRole(null);
+  function editRole(r, copy) {
+    const perms = new Set(r?.permissions || []);
+    $('rlEdit').innerHTML = `<div class="card" style="border-color:var(--blue)">
+      <div class="row"><b class="grow" style="font-size:17px">${r && !copy ? 'Edit ' + esc(r.name) : 'New user type'}</b>
+        <button class="ghost" type="button" data-x>Close</button></div>
+      <form id="rlForm">
+        <div class="row">
+          <div class="grow" style="flex-basis:200px"><label>Name *</label><input name="name" required maxlength="40" value="${esc(copy ? '' : r?.name)}"></div>
+          <div class="grow" style="flex-basis:200px"><label>Works at</label><select name="all">
+            <option value="0"${r && r.all_locations ? '' : ' selected'}>One location (set per login)</option>
+            <option value="1"${r && r.all_locations ? ' selected' : ''}>All locations</option></select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px">
+          ${roles.groups.map((g) => `<div class="inline" style="margin:0"><b>${esc(g.name)}</b>
+            ${g.perms.map((p) => `<label class="perm"><input type="checkbox" name="p" value="${esc(p.code)}"${perms.has(p.code) ? ' checked' : ''}> ${esc(p.label)}</label>`).join('')}</div>`).join('')}
+        </div>
+        ${r && !copy ? `<label class="perm"><input type="checkbox" name="active"${r.is_active ? ' checked' : ''}> Switched on</label>` : ''}
+        <div class="actions"><button class="primary" type="submit">Save user type</button>
+          ${r && !copy ? '<button class="ghost" type="button" data-copy>Copy as new type</button>' : ''}</div>
+        <p class="muted">A type in use can be switched off but not deleted. Every change is kept in the audit log.</p>
+        <div data-m></div>
+      </form></div>`;
+    const f = $('rlForm');
+    $('rlEdit').querySelector('[data-x]').onclick = () => { $('rlEdit').innerHTML = ''; };
+    const cp = $('rlEdit').querySelector('[data-copy]'); if (cp) cp.onclick = () => editRole(r, true);
+    $('rlEdit').scrollIntoView({ behavior: 'smooth' });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { name: f.name.value, allLocations: f.all.value === '1',
+        permissions: [...f.querySelectorAll('input[name=p]:checked')].map((x) => x.value) };
+      if (r && !copy) { body.code = r.code; body.isActive = f.active.checked; }
+      try { await api('POST', '/admin/roles', body); $('rlEdit').innerHTML = ''; msg($('uMsg'), 'User type saved.', true); loadUsers(); }
+      catch (err) { msg(f.querySelector('[data-m]'), err.message); }
+    };
+  }
+
+  // --------------------------------------------------------------- dispatch
+  let dp = { id: null, lines: [] };
+  async function openDispatch() {
+    try {
+      await stockMeta(true);
+      const from = sm.locations.filter((l) => l.sends_goods && l.is_active && inScopeLoc(l.id));
+      $('dpFrom').innerHTML = from.map((l) => `<option value="${esc(l.id)}">${esc(l.code)} · ${esc(l.name)}</option>`).join('');
+      const fillTo = () => {
+        const keep = $('dpTo').value;
+        $('dpTo').innerHTML = sm.locations.filter((l) => l.is_active && l.kind !== 'centre' && l.id !== $('dpFrom').value)
+          .sort((x, y) => (x.kind === 'plant') - (y.kind === 'plant') || x.code.localeCompare(y.code))
+          .map((l) => `<option value="${esc(l.id)}"${l.id === keep ? ' selected' : ''}>${esc(l.code)} · ${esc(l.name)}</option>`).join('');
+      };
+      $('dpFrom').onchange = fillTo; fillTo();
+      $('dpItems').innerHTML = sm.items.map((i) => `<option value="${esc(i.code)} · ${esc(i.name)}"></option>`).join('');
+      $('dpForm').querySelectorAll('button, input, select').forEach((x) => x.disabled = !can('stock.dispatch') || !from.length);
+      if (!can('stock.dispatch')) $('dpTitle').textContent = 'Dispatch (you can confirm returns only)';
+      else if (!from.length) msg($('dpForm').querySelector('[data-m]'), 'No location you work at is set to send goods (Settings › Locations).');
+      drawDpLines();
+      loadDpList();
+    } catch (err) { msg($('dpForm').querySelector('[data-m]'), err.message); }
+  }
+  function drawDpLines() {
+    const rows = dp.lines.map((l, i) => {
+      const tot = (Number(l.packs) || 0) * (l.item.pack_factor || 0) + (Number(l.loose) || 0);
+      return `<tr data-i="${i}"><td class="l"><b>${esc(l.item.name)}</b><br><span class="muted">${l.item.pack_factor ? esc(l.item.pack_name || 'Pack') + ' of ' + qn(l.item.pack_factor) : 'pieces only'}</span></td>
+        <td>${l.item.pack_factor ? `<input data-k="packs" inputmode="numeric" value="${esc(l.packs)}" style="width:80px">` : ''}</td>
+        <td><input data-k="loose" inputmode="decimal" value="${esc(l.loose)}" style="width:80px"></td>
+        <td><b>${qn(tot)}</b></td><td><button class="ghost" type="button" data-rm style="padding:6px 10px" aria-label="Remove">✕</button></td></tr>`;
+    }).join('');
+    $('dpLines').innerHTML = dp.lines.length ? `<thead><tr><th class="l">Item</th><th>Packs</th><th>Loose</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody>` : '';
+    const total = dp.lines.reduce((t, l) => t + (Number(l.packs) || 0) * (l.item.pack_factor || 0) + (Number(l.loose) || 0), 0);
+    const val = dp.lines.reduce((t, l) => t + ((Number(l.packs) || 0) * (l.item.pack_factor || 0) + (Number(l.loose) || 0)) * (l.item.mrp || 0), 0);
+    $('dpTotal').textContent = dp.lines.length ? `${dp.lines.length} items · ${qn(total)} pieces · value at MRP ${inr(val)}` : 'No items yet.';
+  }
+  $('dpLines').oninput = (e) => {
+    const tr = e.target.closest('tr[data-i]'); if (!tr || !e.target.dataset.k) return;
+    dp.lines[tr.dataset.i][e.target.dataset.k] = e.target.value;
+    const l = dp.lines[tr.dataset.i];
+    tr.children[3].innerHTML = `<b>${qn((Number(l.packs) || 0) * (l.item.pack_factor || 0) + (Number(l.loose) || 0))}</b>`;
+    const total = dp.lines.reduce((t, x) => t + (Number(x.packs) || 0) * (x.item.pack_factor || 0) + (Number(x.loose) || 0), 0);
+    $('dpTotal').textContent = `${dp.lines.length} items · ${qn(total)} pieces`;
+  };
+  $('dpLines').onclick = (e) => { const b = e.target.closest('[data-rm]'); if (b) { dp.lines.splice(b.closest('tr').dataset.i, 1); drawDpLines(); } };
+  $('dpFind').onchange = () => {
+    const v = $('dpFind').value.trim().toLowerCase();
+    const it = sm.items.find((i) => `${i.code} · ${i.name}`.toLowerCase() === v) || sm.items.find((i) => String(i.code).toLowerCase() === v)
+      || (v.length > 2 && sm.items.filter((i) => i.name.toLowerCase().includes(v)).length === 1 ? sm.items.find((i) => i.name.toLowerCase().includes(v)) : null);
+    if (!it) return;
+    if (!dp.lines.some((l) => l.item.id === it.id)) dp.lines.push({ item: it, packs: '', loose: '' });
+    $('dpFind').value = ''; drawDpLines();
+    const last = $('dpLines').querySelector(`tr[data-i="${dp.lines.findIndex((l) => l.item.id === it.id)}"] input`); if (last) last.focus();
+  };
+  const linesFromQty = (list) => list.map((x) => {
+    const it = sm.items.find((i) => i.id === x.item_id); if (!it) return null;
+    const p = it.pack_factor ? Math.floor(x.qty_sent / it.pack_factor) : 0;
+    return { item: it, packs: p ? String(p) : '', loose: String(Math.round((x.qty_sent - p * (it.pack_factor || 0)) * 1000) / 1000 || '') };
+  }).filter(Boolean);
+  $('dpCopy').onclick = async () => {
+    try {
+      const list = await api('GET', '/stock/transfers?kind=dispatch&days=31');
+      const last = list.find((t) => t.to_id === $('dpTo').value && t.status !== 'cancelled' && t.status !== 'draft');
+      if (!last) return msg($('dpForm').querySelector('[data-m]'), 'Nothing sent to this counter in the last month.');
+      const t = await api('GET', `/stock/transfers/${last.id}`);
+      dp.lines = linesFromQty(t.lines); drawDpLines();
+      msg($('dpForm').querySelector('[data-m]'), `Copied ${t.doc_no}. Change the numbers as needed.`, true);
+    } catch (err) { msg($('dpForm').querySelector('[data-m]'), err.message); }
+  };
+  $('dpNew').onclick = () => { dp = { id: null, lines: [] }; $('dpForm').reset(); $('dpTitle').textContent = 'New dispatch'; msg($('dpForm').querySelector('[data-m]'), ''); openDispatch(); };
+  $('dpForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target; const send = e.submitter?.dataset.send === '1';
+    const lines = dp.lines.map((l) => ({ itemId: l.item.id, qty: (Number(l.packs) || 0) * (l.item.pack_factor || 0) + (Number(l.loose) || 0) }))
+      .filter((l) => l.qty > 0);
+    if (!lines.length) return msg(f.querySelector('[data-m]'), 'Add items and quantities.');
+    if (send && !confirm(`Send ${lines.length} items to ${locName($('dpTo').value)?.name}? Stock leaves ${locName($('dpFrom').value)?.name} now.`)) return;
+    dp.id = dp.id || uuid();
+    const w = send ? window.open('', '_blank') : null; // opened now so the browser allows it
+    f.querySelectorAll('button').forEach((x) => x.disabled = true);
+    try {
+      const r = await api('POST', '/stock/dispatch', { id: dp.id, from: f.from.value, to: f.to.value, vehicle: f.vehicle.value,
+        driver: f.driver.value, note: f.note.value, send, lines });
+      if (send) {
+        printChallan(r.id, w);
+        dp = { id: null, lines: [] }; f.reset(); drawDpLines();
+        msg(f.querySelector('[data-m]'), `Sent: ${r.docNo}. The counter receives it on its tablet.`, true);
+      } else msg(f.querySelector('[data-m]'), 'Draft saved.', true);
+      loadDpList();
+    } catch (err) { if (w) w.close(); msg(f.querySelector('[data-m]'), err.message); }
+    f.querySelectorAll('button').forEach((x) => x.disabled = false);
+  };
+  async function loadDpList() {
+    try {
+      const list = await api('GET', `/stock/transfers?days=${$('dpDays').value}`);
+      const ret = list.filter((t) => t.kind === 'return' && t.status === 'dispatched' && inScopeLoc(t.to_id));
+      $('dpReturns').innerHTML = ret.length ? ret.map(trRow).join('') : '<div class="muted">No returns waiting.</div>';
+      const rest = list.filter((t) => !ret.includes(t));
+      $('dpList').innerHTML = rest.length ? rest.map(trRow).join('') : '<div class="muted">Nothing in this period.</div>';
+    } catch (err) { $('dpList').innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  }
+  const trRow = (t) => `<div class="row" data-tr="${esc(t.id)}" style="align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer">
+    <div class="grow"><b>${t.kind === 'return' ? 'Return ' : ''}${esc(t.from_code)} → ${esc(t.to_code)}</b> ${statusTag(t)}<br>
+      <span class="muted">${esc(t.doc_no || 'draft')} · ${t.sent_at ? when(t.sent_at) : esc(t.doc_date)} · ${t.lines} items · ${qn(t.sent)} pcs${t.received != null ? ' · received ' + qn(t.received) : ''}</span></div>
+    <span class="muted">Open ›</span></div>`;
+  $('dpDays').onchange = loadDpList;
+  $('dpReturns').onclick = $('dpList').onclick = (e) => { const el = e.target.closest('[data-tr]'); if (el) viewTransfer(el.dataset.tr); };
+  async function viewTransfer(id) {
+    try {
+      const t = await api('GET', `/stock/transfers/${id}`);
+      const confirmRet = t.kind === 'return' && t.status === 'dispatched' && can('stock.return.confirm') && inScopeLoc(t.to_location_id);
+      const canCancel = ['draft', 'dispatched'].includes(t.status) && t.kind === 'dispatch' && can('stock.dispatch') && inScopeLoc(t.from_location_id);
+      $('dpView').innerHTML = `<div class="card" style="border-color:var(--blue)">
+        <div class="row"><b class="grow" style="font-size:17px">${t.kind === 'return' ? 'Return' : 'Dispatch'} ${esc(t.doc_no || '(draft)')}</b>
+          <button class="ghost" type="button" data-x>Close</button></div>
+        <div class="muted">${esc(t.from_name)} → ${esc(t.to_name)} · ${statusTag(t)} · sent by ${esc(t.sent_by || '—')} ${t.sent_at ? when(t.sent_at) : ''}
+          ${t.received_by_name ? ' · received by ' + esc(t.received_by_name) + ' ' + when(t.received_at) : ''}${t.vehicle ? ' · ' + esc(t.vehicle) : ''}${t.driver ? ' · ' + esc(t.driver) : ''}</div>
+        ${t.note ? `<div class="inline">${esc(t.note)}</div>` : ''}
+        <div class="scroll"><table style="margin-top:8px"><thead><tr><th class="l">Item</th><th>Sent</th><th>Received</th><th class="l">Reason</th></tr></thead><tbody>
+        ${t.lines.map((l) => `<tr data-line="${esc(l.id)}"><td class="l">${esc(l.name)}</td><td>${qn(l.qty_sent)}</td>
+          <td>${confirmRet ? `<input data-got inputmode="decimal" value="${l.qty_sent}" style="width:90px">` : (l.qty_received == null ? '—' : qn(l.qty_received))}</td>
+          <td class="l">${confirmRet ? `<select data-why style="width:auto"><option value="">—</option><option value="short">Short</option><option value="damaged">Damaged</option><option value="extra">Extra</option><option value="wrong">Wrong item</option></select>` : esc(l.reason || '')}</td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="actions">
+          ${t.doc_no ? '<button class="ghost" type="button" data-print>Print challan</button>' : ''}
+          ${t.status === 'draft' && can('stock.dispatch') ? '<button class="ghost" type="button" data-edit>Edit draft</button>' : ''}
+          ${confirmRet ? '<button class="primary" type="button" data-confirm>Confirm return received</button>' : ''}
+          ${canCancel ? '<button class="danger" type="button" data-cancel>Cancel</button>' : ''}
+        </div><div data-m></div></div>`;
+      const v = $('dpView'); const m = v.querySelector('[data-m]');
+      v.querySelector('[data-x]').onclick = () => { v.innerHTML = ''; };
+      const pb = v.querySelector('[data-print]'); if (pb) pb.onclick = () => printChallan(t.id);
+      const eb = v.querySelector('[data-edit]'); if (eb) eb.onclick = () => {
+        dp = { id: t.id, lines: linesFromQty(t.lines) };
+        $('dpFrom').value = t.from_location_id; $('dpFrom').onchange(); $('dpTo').value = t.to_location_id;
+        $('dpForm').vehicle.value = t.vehicle || ''; $('dpForm').driver.value = t.driver || ''; $('dpForm').note.value = t.note || '';
+        $('dpTitle').textContent = 'Draft dispatch'; drawDpLines(); v.innerHTML = ''; window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      const cb = v.querySelector('[data-cancel]'); if (cb) cb.onclick = async () => {
+        const reason = prompt('Why cancel? (stock goes back to the sender)'); if (reason === null) return;
+        try { await api('POST', `/stock/transfers/${t.id}/cancel`, { reason }); v.innerHTML = ''; loadDpList(); }
+        catch (err) { msg(m, err.message); }
+      };
+      const ok = v.querySelector('[data-confirm]'); if (ok) ok.onclick = async () => {
+        const lines = [...v.querySelectorAll('tr[data-line]')].map((tr) => ({ id: tr.dataset.line, received: Number(tr.querySelector('[data-got]').value), reason: tr.querySelector('[data-why]').value || undefined }));
+        try { await api('POST', `/stock/transfers/${t.id}/receive`, { lines }); msg(m, 'Return confirmed. Stock added here.', true); loadDpList(); setTimeout(() => { v.innerHTML = ''; }, 1500); }
+        catch (err) { msg(m, err.message); }
+      };
+      v.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) { msg($('dpForm').querySelector('[data-m]'), err.message); }
+  }
+  async function printChallan(id, win) {
+    const w = win || window.open('', '_blank');
+    if (!w) return alert('Allow pop-ups for this page to print the challan.');
+    try {
+      const t = await api('GET', `/stock/transfers/${id}`);
+      const rows = t.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.name)}</td><td style="text-align:right">${l.pack_factor && l.qty_sent >= l.pack_factor ? Math.floor(l.qty_sent / l.pack_factor) + ' ' + esc((l.pack_name || '').toLowerCase()) + (l.qty_sent % l.pack_factor ? ' + ' + qn(l.qty_sent % l.pack_factor) : '') : ''}</td><td style="text-align:right">${qn(l.qty_sent)}</td><td></td></tr>`).join('');
+      const total = t.lines.reduce((s, l) => s + l.qty_sent, 0);
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.doc_no)}</title><style>
+        body{font:14px system-ui,sans-serif;margin:24px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:14px}
+        td,th{border:1px solid #999;padding:6px 8px;text-align:left}.sig{display:flex;justify-content:space-between;margin-top:60px}</style></head><body>
+        <h1>${t.kind === 'return' ? 'Return challan' : 'Delivery challan'}</h1>
+        <p><b>No. ${esc(t.doc_no)}</b> · ${esc(t.doc_date)}<br>From: ${esc(t.from_name)}<br>To: ${esc(t.to_name)}
+        ${t.vehicle ? '<br>Vehicle: ' + esc(t.vehicle) : ''}${t.driver ? ' · Driver: ' + esc(t.driver) : ''}</p>
+        <table><tr><th>#</th><th>Item</th><th>Packs</th><th>Pieces</th><th>Received</th></tr>${rows}
+        <tr><th></th><th>Total</th><th></th><th style="text-align:right">${qn(total)}</th><th></th></tr></table>
+        ${t.note ? '<p>' + esc(t.note) + '</p>' : ''}
+        <div class="sig"><div>Sent by: ${esc(t.sent_by || '')}</div><div>Driver</div><div>Received by</div></div>
+        <script>window.print()<\/script></body></html>`);
+      w.document.close();
+    } catch (err) { if (w) w.close(); alert(err.message); }
+  }
+
+  // ------------------------------------------------------------------ stock
+  let sk = null;
+  async function loadStock() {
+    try {
+      await stockMeta();
+      sk = await api('GET', '/stock/position');
+      const cats = [...new Set(sk.items.map((i) => i.category).filter(Boolean))];
+      const cur = $('skCat').value;
+      $('skCat').innerHTML = '<option value="">All groups</option>' + cats.map((c) => `<option${c === cur ? ' selected' : ''}>${esc(c)}</option>`).join('');
+      msg($('skMsg'), '');
+      drawStock();
+    } catch (err) { msg($('skMsg'), err.message); }
+  }
+  const skCell = (i, l) => i.qty[l.id] || 0;
+  // Zero is not flagged: many items are simply not kept at every counter.
+  const skFlag = (i, q) => q < 0 ? 'neg' : (i.reorder_level != null && q > 0 && q < i.reorder_level) ? 'low' : '';
+  function drawStock() {
+    if (!sk) return;
+    const q = $('skQ').value.trim().toLowerCase(), cat = $('skCat').value, val = $('skMode').value === 'value', low = $('skLow').checked;
+    const outlets = sk.locations.filter((l) => l.kind === 'outlet' || l.kind === 'franchise');
+    let items = sk.items.filter((i) => (!cat || i.category === cat) && (!q || i.name.toLowerCase().includes(q) || String(i.code) === q));
+    if (low) items = items.filter((i) => outlets.some((l) => skFlag(i, skCell(i, l))) || sk.locations.some((l) => skCell(i, l) < 0));
+    let value = 0, below = 0, neg = 0;
+    for (const i of sk.items) for (const l of sk.locations) {
+      const n = skCell(i, l); if (n > 0) value += n * i.mrp;
+      const fl = skFlag(i, n); if (fl === 'neg') neg++; else if (fl === 'low' && (l.kind === 'outlet' || l.kind === 'franchise')) below++;
+    }
+    $('skTiles').innerHTML = `<div class="tile">Stock value, all locations (MRP)<b>${inr(value)}</b></div>
+      <div class="tile">On the way (sent, not received)<b>${sk.inTransit.docs} · ${qn(sk.inTransit.qty)} pcs</b></div>
+      <div class="tile">Below reorder level<b class="low">${below}</b></div><div class="tile">In minus<b class="neg">${neg}</b></div>`;
+    const fmt = (i, n) => val ? (n ? inr(n * i.mrp) : '') : (n ? qn(n) : '<span class="muted">0</span>');
+    $('skGrid').innerHTML = `<table><thead><tr><th>Item</th>${sk.locations.map((l) => `<th>${esc(l.code)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${items.map((i) => { const tot = sk.locations.reduce((t, l) => t + skCell(i, l), 0);
+        return `<tr><td>${esc(i.name)}<br><span class="muted">${esc(i.code)}${i.reorder_level != null ? ' · reorder ' + qn(i.reorder_level) : ''}</span></td>
+        ${sk.locations.map((l) => { const n = skCell(i, l); return `<td data-loc="${esc(l.id)}" data-item="${esc(i.id)}" class="${l.kind === 'plant' ? (n < 0 ? 'neg' : '') : skFlag(i, n)}">${fmt(i, n)}</td>`; }).join('')}
+        <td><b>${val ? inr(tot * i.mrp) : qn(tot)}</b></td></tr>`; }).join('')}</tbody></table>`;
+  }
+  ['skQ', 'skCat', 'skMode', 'skLow'].forEach((id) => { $(id).oninput = drawStock; $(id).onchange = drawStock; });
+  $('skRefresh').onclick = loadStock;
+  $('skXls').onclick = async () => {
+    try {
+      await sheet('kwikerp-stock-' + istDate(new Date()) + '.xlsx', ['Item code', 'Item', 'Group', 'MRP', ...sk.locations.map((l) => l.code), 'Total'],
+        sk.items.map((i) => [String(i.code), i.name, i.category || '', i.mrp, ...sk.locations.map((l) => skCell(i, l)),
+          sk.locations.reduce((t, l) => t + skCell(i, l), 0)]), [10, 30, 18, 8, ...sk.locations.map(() => 8), 9]);
+    } catch (err) { msg($('skMsg'), err.message); }
+  };
+  $('skGrid').onclick = async (e) => {
+    const td = e.target.closest('td[data-loc]'); if (!td) return;
+    const i = sk.items.find((x) => x.id === td.dataset.item), l = sk.locations.find((x) => x.id === td.dataset.loc);
+    try {
+      const r = await api('GET', `/stock/movements?item=${i.id}&location=${l.id}&days=30`);
+      let bal = r.opening;
+      const label = { sale: 'Sold', sale_return: 'Sale return', transfer_in: 'Received', transfer_out: 'Sent', adjustment: 'Adjustment', count: 'Count difference', opening: 'Opening', wastage: 'Wastage', purchase: 'Purchase' };
+      $('skMoves').innerHTML = `<div class="card" style="border-color:var(--blue)"><div class="row"><b class="grow">${esc(i.name)} at ${esc(l.name)} · last 30 days</b>
+        <button class="ghost" type="button" data-x>Close</button></div>
+        <div class="scroll"><table><thead><tr><th class="l">Date</th><th class="l">What</th><th class="l">No. / note</th><th>Qty</th><th>Balance</th></tr></thead><tbody>
+        <tr><td class="l" colspan="4">Before</td><td>${qn(bal)}</td></tr>
+        ${r.moves.map((m) => { bal += m.qty; return `<tr><td class="l">${esc(m.move_date)}</td><td class="l">${esc(label[m.move_type] || m.move_type)}</td>
+          <td class="l">${esc(m.doc_no || '')}${m.reason ? ' ' + esc(m.reason) : ''}${m.by ? ' · ' + esc(m.by) : ''}</td><td>${m.qty > 0 ? '+' : ''}${qn(m.qty)}</td><td>${qn(bal)}</td></tr>`; }).join('')}
+        </tbody></table></div></div>`;
+      $('skMoves').querySelector('[data-x]').onclick = () => { $('skMoves').innerHTML = ''; };
+      $('skMoves').scrollIntoView({ behavior: 'smooth' });
+    } catch (err) { msg($('skMsg'), err.message); }
+  };
+
+  // ------------------------------------------------------------------ count
+  let cn = null; // { id, location, startedAt, qty: {itemId: value} }
+  const cnKey = () => 'kwik_count_' + $('cnLoc').value;
+  function cnLoad() {
+    try { cn = JSON.parse(store.get(cnKey()) || 'null'); } catch (e) { cn = null; }
+    if (!cn) cn = { id: uuid(), location: $('cnLoc').value, startedAt: null, qty: {} };
+  }
+  const cnSave = () => store.set(cnKey(), JSON.stringify(cn));
+  async function openCount() {
+    try {
+      await stockMeta();
+      const locs = sm.locations.filter((l) => l.is_active && inScopeLoc(l.id) && l.kind !== 'centre');
+      const cur = $('cnLoc').value;
+      $('cnLoc').innerHTML = locs.map((l) => `<option value="${esc(l.id)}"${l.id === cur ? ' selected' : ''}>${esc(l.code)} · ${esc(l.name)}</option>`).join('');
+      const cats = [...new Set(sm.items.map((i) => i.category).filter(Boolean))];
+      $('cnCat').innerHTML = '<option value="">All groups</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+      cnLoad(); drawCount(); loadCountList();
+    } catch (err) { msg($('cnMsg'), err.message); }
+  }
+  function drawCount() {
+    const q = $('cnQ').value.trim().toLowerCase(), cat = $('cnCat').value;
+    const items = sm.items.filter((i) => (!cat || i.category === cat) && (!q || i.name.toLowerCase().includes(q) || String(i.code) === q));
+    $('cnList').innerHTML = items.map((i) => `<tr><td class="l"><b>${esc(i.name)}</b><br><span class="muted">${esc(i.code)}${i.pack_factor ? ' · ' + esc((i.pack_name || 'pack').toLowerCase()) + ' of ' + qn(i.pack_factor) : ''} · count in ${i.sold_by_weight ? 'kg' : 'pieces'}</span></td>
+      <td><input data-cn="${esc(i.id)}" inputmode="decimal" placeholder="–" value="${esc(cn.qty[i.id] ?? '')}" aria-label="Counted ${esc(i.name)}"></td></tr>`).join('');
+    cnTally();
+  }
+  const cnTally = () => { $('cnCount').textContent = `Counted ${Object.keys(cn.qty).length} of ${sm.items.length} items`; };
+  $('cnList').oninput = (e) => {
+    const id = e.target.dataset.cn; if (!id) return;
+    const v = e.target.value.trim();
+    if (v === '') delete cn.qty[id]; else cn.qty[id] = v;
+    if (!cn.startedAt) cn.startedAt = new Date().toISOString();
+    cnSave(); cnTally();
+  };
+  $('cnQ').oninput = drawCount; $('cnCat').onchange = drawCount;
+  $('cnLoc').onchange = () => { cnLoad(); drawCount(); };
+  $('cnClear').onclick = () => { if (!confirm('Clear everything typed in this count?')) return; store.set(cnKey(), null); cnLoad(); drawCount(); };
+  $('cnFinish').onclick = async () => {
+    const lines = Object.entries(cn.qty).map(([itemId, v]) => ({ itemId, counted: Number(v) }));
+    if (!lines.length) return msg($('cnMsg'), 'Type the count for at least one item.');
+    if (lines.some((l) => !(l.counted >= 0))) return msg($('cnMsg'), 'Counts must be numbers, 0 or more.');
+    if (!confirm(`Finish the count of ${lines.length} items at ${locName($('cnLoc').value)?.name}?`)) return;
+    $('cnFinish').disabled = true;
+    try {
+      const r = await api('POST', '/stock/counts', { id: cn.id, location: $('cnLoc').value, startedAt: cn.startedAt, lines });
+      store.set(cnKey(), null); cnLoad(); drawCount(); msg($('cnMsg'), '');
+      showCountResult(r); loadCountList();
+    } catch (err) { msg($('cnMsg'), err.message); }
+    $('cnFinish').disabled = false;
+  };
+  function showCountResult(r) {
+    const d = r.lines.filter((l) => l.diff !== 0);
+    $('cnResult').innerHTML = `<div class="card" style="border-color:var(--blue)"><div class="row"><b class="grow" style="font-size:17px">Count at ${esc(r.location_name)}: ${d.length ? d.length + ' differences' : 'everything matches'}</b>
+      <button class="ghost" type="button" data-x>Close</button></div>
+      <div class="muted">${esc(r.counted_by)} · ${when(r.finished_at)} · ${r.lines.length} items counted${d.length ? ' · difference at MRP ' + inr(r.totalValue) : ''}</div>
+      ${d.length ? `<div class="scroll"><table><thead><tr><th class="l">Item</th><th>Counted</th><th>System</th><th>Difference</th><th>Value</th></tr></thead><tbody>
+        ${d.map((l) => `<tr><td class="l">${esc(l.name)}</td><td>${qn(l.counted)}</td><td>${qn(l.system_qty)}</td><td class="${l.diff < 0 ? 'neg' : ''}">${l.diff > 0 ? '+' : ''}${qn(l.diff)}</td><td>${inr(l.value)}</td></tr>`).join('')}
+        </tbody></table></div><p class="muted">Each difference has gone to Approvals. Stock changes only once approved.</p>` : ''}</div>`;
+    $('cnResult').querySelector('[data-x]').onclick = () => { $('cnResult').innerHTML = ''; };
+    $('cnResult').scrollIntoView({ behavior: 'smooth' });
+  }
+  async function loadCountList() {
+    try {
+      const list = await api('GET', '/stock/counts?days=31');
+      $('cnRecent').innerHTML = list.length ? list.map((k) => `<div class="row" data-k="${esc(k.id)}" style="padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer">
+        <div class="grow"><b>${esc(k.location_code)}</b> · ${esc(k.counted_by)} · ${when(k.finished_at)}<br><span class="muted">${k.items} items · ${k.differences} differences</span></div><span class="muted">Open ›</span></div>`).join('')
+        : '<div class="muted">No counts in the last month.</div>';
+    } catch (err) { $('cnRecent').innerHTML = ''; }
+  }
+  $('cnRecent').onclick = async (e) => {
+    const el = e.target.closest('[data-k]'); if (!el) return;
+    try { showCountResult(await api('GET', `/stock/counts/${el.dataset.k}`)); } catch (err) { msg($('cnMsg'), err.message); }
+  };
+
+  // ------------------------------------------------------------------ audit
+  let ar = null;
+  async function openAudit() {
+    try {
+      await stockMeta();
+      const outs = sm.locations.filter((l) => (l.kind === 'outlet' || l.kind === 'franchise') && inScopeLoc(l.id));
+      if (!$('auLoc').options.length) {
+        $('auLoc').innerHTML = outs.map((l) => `<option value="${esc(l.id)}">${esc(l.code)} · ${esc(l.name)}</option>`).join('');
+        const y = istDate(new Date(Date.now() - 864e5));
+        $('auDate').value = y; $('arFrom').value = istDate(new Date(Date.now() - 7 * 864e5)); $('arTo').value = y;
+      }
+      loadAuWeek(); showAuditDay();
+    } catch (err) { msg($('auMsg'), err.message); }
+  }
+  async function loadAuWeek() {
+    try {
+      const w = await api('GET', '/audit/overview?days=7');
+      $('auWeek').innerHTML = w.map((o) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div class="grow"><b>${esc(o.code)}</b> ${esc(o.name)}</div>
+        <span class="tag ok">${o.verified} verified</span>${o.query ? ` <span class="tag warn">${o.query} query</span>` : ''}
+        ${o.waiting ? ` <span class="tag warn" title="${esc((o.waiting_days || []).join(', '))}">${o.waiting} waiting</span>` : ''}</div>`).join('');
+    } catch (err) { $('auWeek').innerHTML = ''; }
+  }
+  $('auShow').onclick = showAuditDay;
+  async function showAuditDay() {
+    msg($('auMsg'), '');
+    try {
+      const d = await api('GET', `/audit/day?location=${$('auLoc').value}&date=${$('auDate').value}`);
+      const m = d.money, st = d.status;
+      const stTag = st ? (st.status === 'verified' ? `<span class="tag ok">Verified by ${esc(st.checked_by)}</span>` : `<span class="tag warn">Query by ${esc(st.checked_by)}</span>`) : '<span class="tag warn">Waiting for Accounts</span>';
+      $('auDay').innerHTML = `<div class="card"><div class="row" style="align-items:center"><b class="grow" style="font-size:17px">${esc(d.location.name)} · ${esc(d.date)}</b>${stTag}</div>
+        ${st?.note ? `<div class="inline">${esc(st.note)}</div>` : ''}</div>
+        <div class="card"><b>1. Money</b>
+          <div class="tiles" style="margin-top:8px">
+            <div class="tile">Sales (${m.bills} bills)<b>${inr(m.sales, true)}</b></div>
+            <div class="tile">Cash<b>${inr(m.cash, true)}</b></div><div class="tile">UPI<b>${inr(m.upi, true)}</b></div>
+            ${m.card ? `<div class="tile">Card<b>${inr(m.card, true)}</b></div>` : ''}
+            <div class="tile">Credit (${m.creditBills} bills)<b>${inr(m.credit, true)}</b></div></div>
+          ${m.shifts.length ? `<div class="scroll"><table><thead><tr><th class="l">Shift</th><th>Opening</th><th>Expected in drawer</th><th>Counted</th><th>Short / extra</th></tr></thead><tbody>
+            ${m.shifts.map((x) => `<tr><td class="l">${esc(x.cashier)} · ${esc(x.device)}<br><span class="muted">${when(x.opened_at)} – ${x.closed_at ? when(x.closed_at) : 'open'}</span></td>
+              <td>${inr(x.opening, true)}</td><td>${x.expected == null ? '—' : inr(x.expected, true)}</td><td>${x.counted == null ? '—' : inr(x.counted, true)}</td>
+              <td class="${x.diff < 0 ? 'neg' : ''}">${x.diff == null ? '—' : inr(x.diff, true)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted">No shifts opened this day.</div>'}
+          <label class="perm" style="margin-top:10px"><input type="checkbox" id="auUpi"${st?.upi_matched ? ' checked' : ''}> UPI ${inr(m.upi, true)} matches the bank statement</label></div>
+        <div class="card"><b>2. Stock (pieces)</b>
+          ${d.stock.length ? `<div class="scroll"><table><thead><tr><th class="l">Item</th><th>Opening</th><th>+ Received</th><th>− Sold</th><th>− Sent back</th><th>± Adjusted</th><th>Closing</th><th>Counted</th><th>Difference</th></tr></thead><tbody>
+            ${d.stock.map((r) => `<tr><td class="l">${esc(r.name)}</td><td>${qn(r.opening)}</td><td>${qn(r.received)}</td><td>${qn(r.sold)}</td><td>${qn(r.returned)}</td>
+              <td>${qn(r.adjusted)}</td><td><b>${qn(r.closing)}</b></td><td>${r.counted == null ? '—' : qn(r.counted)}</td>
+              <td class="${r.diff ? 'neg' : ''}">${r.diff == null ? '' : (r.diff > 0 ? '+' : '') + qn(r.diff) + (r.value ? ' · ' + inr(r.value) : '')}</td></tr>`).join('')}</tbody></table></div>
+            <div class="muted" style="margin-top:6px">Counted / difference: from a stock count that day (difference against the system at that moment).${d.stockDiffValue ? ' Total ' + inr(d.stockDiffValue) + ' at MRP.' : ''}</div>`
+            : '<div class="muted">No stock movement.</div>'}</div>
+        <div class="card"><b>3. Things to look at</b>
+          ${d.exceptions.map((x) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="tag ${x.level}" style="min-width:34px;text-align:center">${x.count}</span><div class="grow">${esc(x.text)}</div></div>`).join('')}</div>
+        ${can('audit.verify') ? `<div class="card"><label for="auNote">Note (needed for a query)</label><input id="auNote" value="${esc(st?.note || '')}">
+          <div class="actions"><button class="ghost" type="button" data-au="query">Raise a query</button><button class="primary" type="button" data-au="verified">Mark day verified</button></div><div data-m></div></div>` : ''}`;
+      $('auDay').querySelectorAll('[data-au]').forEach((b) => b.onclick = async () => {
+        try {
+          await api('POST', '/audit/day', { location: $('auLoc').value, date: $('auDate').value, status: b.dataset.au, upiMatched: $('auUpi').checked, note: $('auNote').value });
+          showAuditDay(); loadAuWeek();
+        } catch (err) { msg($('auDay').querySelector('[data-m]'), err.message); }
+      });
+    } catch (err) { $('auDay').innerHTML = ''; msg($('auMsg'), err.message); }
+  }
+  $('arShow').onclick = async () => {
+    try {
+      ar = await api('GET', `/audit/report?type=${$('arType').value}&from=${$('arFrom').value}&to=${$('arTo').value}`);
+      const cell = (v) => typeof v === 'number' ? qn(v) : esc(v ?? '');
+      $('arOut').innerHTML = `<h3 style="margin:14px 0 6px;font-size:16px">${esc(ar.title)}</h3>
+        <pre style="white-space:pre-wrap;background:var(--ground);padding:10px;border-radius:8px;font:inherit;font-size:14px">${esc(ar.summary)}</pre>
+        ${ar.rows.length ? `<div class="scroll"><table><thead><tr>${ar.columns.map(([, h], i) => `<th${i < 3 ? ' class="l"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>
+        ${ar.rows.map((r) => `<tr>${ar.columns.map(([k], i) => `<td${i < 3 ? ' class="l"' : ''}>${cell(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="muted">Nothing in this period.</div>'}`;
+    } catch (err) { $('arOut').innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  };
+  $('arXls').onclick = async () => {
+    if (!ar) await $('arShow').onclick();
+    if (!ar) return;
+    try { await sheet(`kwikerp-${$('arType').value}-${$('arFrom').value}-${$('arTo').value}.xlsx`, ar.columns.map(([, h]) => h), ar.rows.map((r) => ar.columns.map(([k]) => r[k] ?? ''))); }
+    catch (err) { $('arOut').insertAdjacentHTML('afterbegin', `<div class="msg err">${esc(err.message)}</div>`); }
+  };
+  $('arWa').onclick = async () => {
+    if (!ar) await $('arShow').onclick();
+    if (ar) window.open('https://wa.me/?text=' + encodeURIComponent(ar.summary), '_blank');
+  };
+
+  // --------------------------------------------------------------- settings
+  let org = null;
+  async function loadSettings() {
+    try {
+      org = await api('GET', '/settings/org');
+      const lim = await api('GET', '/settings/stock');
+      $('stCo').innerHTML = org.companies.map((c) => `<div class="row" data-co="${esc(c.id)}" style="align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer">
+        <div class="grow"><b>${esc(c.legal_name)}</b>${c.brand_name ? ' · ' + esc(c.brand_name) : ''}<br>
+          <span class="muted">${esc(c.code)} · GSTIN ${esc(c.gstin || 'not set')} · ${esc(c.address || '')}</span></div><span class="muted">Edit ›</span></div>`).join('');
+      const kind = { plant: 'Plant', godown: 'Godown', outlet: 'Outlet', franchise: 'Franchise', centre: 'Centre' };
+      $('stLoc').innerHTML = `<table><thead><tr><th class="l">Code</th><th class="l">Name</th><th class="l">Type</th><th class="l">Sends goods</th><th class="l">Gets goods from</th><th class="l">Status</th></tr></thead><tbody>
+        ${org.locations.map((l) => `<tr data-loc="${esc(l.id)}" style="cursor:pointer${l.is_active ? '' : ';opacity:.55'}"><td class="l"><b>${esc(l.code)}</b></td><td class="l">${esc(l.name)}</td>
+          <td class="l">${kind[l.kind] || esc(l.kind)}</td><td class="l">${l.sends_goods ? 'Yes' : 'No'}</td><td class="l">${esc(l.supply_from || '—')}</td>
+          <td class="l">${l.is_active ? '<span class="tag ok">Active</span>' : '<span class="tag off">Off</span>'}</td></tr>`).join('')}</tbody></table>`;
+      const f = $('stLim');
+      f.ownerAbove.value = lim.ownerAbove;
+      f.mrpLevel.innerHTML = lim.levels.map((l) => `<option value="${esc(l.code)}"${l.code === lim.mrpLevel ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
+      msg($('stMsg'), '');
+    } catch (err) { msg($('stMsg'), err.message); }
+  }
+  $('stLim').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('POST', '/settings/stock', { ownerAbove: Number(e.target.ownerAbove.value), mrpLevel: e.target.mrpLevel.value }); msg(e.target.querySelector('[data-m]'), 'Saved.', true); }
+    catch (err) { msg(e.target.querySelector('[data-m]'), err.message); }
+  };
+  $('stCo').onclick = (e) => { const el = e.target.closest('[data-co]'); if (el) editCompany(org.companies.find((c) => c.id === el.dataset.co)); };
+  $('stCoAdd').onclick = () => editCompany(null);
+  function editCompany(c) {
+    const fld = (n, label, v, extra = '') => `<div class="grow" style="flex-basis:200px"><label>${label}</label><input name="${n}" value="${esc(v)}" ${extra}></div>`;
+    $('stCoEdit').innerHTML = `<div class="card" style="border-color:var(--blue)"><div class="row"><b class="grow" style="font-size:17px">${c ? 'Edit ' + esc(c.legal_name) : 'New company'}</b>
+      <button class="ghost" type="button" data-x>Close</button></div>
+      <form id="coForm">
+        <div class="row">${fld('legalName', 'Legal name *', c?.legal_name, 'required')}${fld('brandName', 'Brand name', c?.brand_name)}${fld('code', 'Short code *', c?.code, 'required style="text-transform:uppercase"')}</div>
+        <div class="row">${fld('gstin', 'GSTIN', c?.gstin, 'style="text-transform:uppercase"')}${fld('pan', 'PAN', c?.pan, 'style="text-transform:uppercase"')}${fld('fssai', 'FSSAI licence no.', c?.fssai_no)}</div>
+        <div class="row">${fld('address', 'Registered office', c?.address)}${fld('stateCode', 'GST state code', c?.state_code || '10', 'inputmode="numeric" maxlength="2"')}</div>
+        <div class="row">${fld('phone', 'Phone', c?.phone, 'inputmode="tel"')}${fld('email', 'Email', c?.email, 'type="email"')}</div>
+        <div class="actions"><button class="primary" type="submit">Save company</button></div><div data-m></div></form></div>`;
+    const f = $('coForm');
+    $('stCoEdit').querySelector('[data-x]').onclick = () => { $('stCoEdit').innerHTML = ''; };
+    $('stCoEdit').scrollIntoView({ behavior: 'smooth' });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(f).entries()); if (c) body.id = c.id;
+      try { await api('POST', '/settings/company', body); $('stCoEdit').innerHTML = ''; msg($('stMsg'), 'Company saved.', true); loadSettings(); }
+      catch (err) { msg(f.querySelector('[data-m]'), err.message); }
+    };
+  }
+  $('stLoc').onclick = (e) => { const el = e.target.closest('[data-loc]'); if (el) editLocation(org.locations.find((l) => l.id === el.dataset.loc)); };
+  $('stLocAdd').onclick = () => editLocation(null);
+  function editLocation(l) {
+    const opt = (list, sel) => list.map(([v, t]) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(t)}</option>`).join('');
+    $('stLocEdit').innerHTML = `<div class="card" style="border-color:var(--blue)"><div class="row"><b class="grow" style="font-size:17px">${l ? 'Edit ' + esc(l.name) : 'New location'}</b>
+      <button class="ghost" type="button" data-x>Close</button></div>
+      <form id="locForm">
+        <div class="row">
+          <div class="grow" style="flex-basis:120px"><label>Code *</label><input name="code" required value="${esc(l?.code)}" style="text-transform:uppercase" ${l?.in_use ? 'readonly' : ''}></div>
+          <div class="grow" style="flex-basis:240px"><label>Name *</label><input name="name" required value="${esc(l?.name)}"></div>
+          <div class="grow" style="flex-basis:140px"><label>Type</label><select name="kind">${opt([['outlet', 'Outlet'], ['godown', 'Godown'], ['plant', 'Plant'], ['franchise', 'Franchise']], l?.kind || 'godown')}</select></div>
+        </div>
+        <div class="row">
+          <div class="grow" style="flex-basis:200px"><label>Company</label><select name="companyId">${opt(org.companies.map((c) => [c.id, c.legal_name]), l?.company_id)}</select></div>
+          <div class="grow" style="flex-basis:200px"><label>Gets goods from</label><select name="supplyFrom"><option value="">—</option>${opt(org.locations.filter((x) => x.sends_goods && x.id !== l?.id).map((x) => [x.code, x.code + ' · ' + x.name]), l?.supply_from)}</select></div>
+          <div class="grow" style="flex-basis:200px"><label>Default rate list</label><select name="priceLevel">${opt(org.levels.map((p) => [p.code, p.name]), l?.price_level)}</select></div>
+        </div>
+        <div class="row">
+          <div class="grow" style="flex-basis:260px"><label>Address</label><input name="address" value="${esc(l?.address)}"></div>
+          <div class="grow" style="flex-basis:140px"><label>Phone</label><input name="phone" value="${esc(l?.phone)}" inputmode="tel"></div>
+          <div class="grow" style="flex-basis:140px"><label>FSSAI licence</label><input name="fssai" value="${esc(l?.fssai_no)}"></div>
+        </div>
+        <label class="perm"><input type="checkbox" name="sendsGoods"${l?.sends_goods ? ' checked' : ''}> Sends goods (can dispatch to counters)</label>
+        <label class="perm"><input type="checkbox" name="isActive"${!l || l.is_active ? ' checked' : ''}> Active</label>
+        <div class="actions"><button class="primary" type="submit">Save location</button></div>
+        ${l?.in_use ? '<p class="muted">The code is already used in tablets or documents, so it stays as it is.</p>' : ''}<div data-m></div></form></div>`;
+    const f = $('locForm');
+    $('stLocEdit').querySelector('[data-x]').onclick = () => { $('stLocEdit').innerHTML = ''; };
+    $('stLocEdit').scrollIntoView({ behavior: 'smooth' });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { code: f.code.value, name: f.name.value, kind: f.kind.value, companyId: f.companyId.value, supplyFrom: f.supplyFrom.value || null,
+        priceLevel: f.priceLevel.value, address: f.address.value, phone: f.phone.value, fssai: f.fssai.value,
+        sendsGoods: f.sendsGoods.checked, isActive: f.isActive.checked };
+      if (l) body.id = l.id;
+      try { await api('POST', '/settings/location', body); $('stLocEdit').innerHTML = ''; msg($('stMsg'), 'Location saved.', true); sm = null; loadSettings(); }
+      catch (err) { msg(f.querySelector('[data-m]'), err.message); }
+    };
+  }
+
   // ---------------------------------------------------------------- start
   async function start() {
     try {
       me = await api('GET', '/auth/me');
     } catch (e) { return showLogin(); }
     $('who').textContent = me.userName || '';
-    const can = (p) => (me.permissions || []).includes('*') || (me.permissions || []).includes(p);
-    const need = { approvals: 'credit.approve', sales: 'report.all', customers: 'customer.edit', types: 'rates.manage', rates: 'rates.manage', items: 'rates.manage', tally: 'accounts.export', users: 'users.manage', receipt: 'settings.manage', code: 'credit.approve' };
-    document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !can(need[b.dataset.tab])));
+    const need = { approvals: ['credit.approve', 'stock.adjust'], sales: ['report.all'], dispatch: ['stock.dispatch', 'stock.return.confirm'],
+      stock: ['stock.view.all'], count: ['stock.count'], audit: ['audit.view', 'audit.verify'], customers: ['customer.edit'],
+      types: ['rates.manage'], rates: ['rates.manage'], items: ['rates.manage'], tally: ['accounts.export'], users: ['users.manage'],
+      receipt: ['settings.manage'], settings: ['settings.manage'], code: ['credit.approve'] };
+    document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('hidden', !canAny(...need[b.dataset.tab])));
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
-    loadApprovals();
+    const first = document.querySelector('nav button:not(.hidden)');
+    if (!first) { $('tab-approvals').innerHTML = '<div class="card">This login has nothing to do on the head-office page. Use the tablet app.</div>'; return; }
+    first.click();
     clearInterval(timer);
-    timer = setInterval(() => { if (!document.hidden) loadApprovals(); }, 20000);
+    if (canAny('credit.approve', 'stock.adjust')) timer = setInterval(() => { if (!document.hidden) loadApprovals(); }, 20000);
   }
   token ? start() : showLogin();
 })();

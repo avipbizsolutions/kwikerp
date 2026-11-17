@@ -6,6 +6,7 @@ import type { Response } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AdminController } from './admin';
+import { AuditController } from './audit';
 import { ApprovalsController } from './approvals';
 import { AuthController, AuthGuard } from './auth';
 import { config } from './config';
@@ -14,8 +15,10 @@ import { BillsController } from './bills';
 import { CustomersController } from './customers';
 import { ImagesController } from './images';
 import { RatesController } from './rates';
+import { RolesController } from './roles';
 import { ReportsController } from './reports';
 import { SettingsController } from './settings';
+import { StockController } from './stock';
 import { SyncController } from './sync';
 import { TallyController } from './tally';
 
@@ -57,7 +60,7 @@ class DownloadController {
 }
 
 @Module({
-  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AdminController, SettingsController, RatesController, ImagesController, AuthController, SyncController, ApprovalsController],
+  controllers: [HealthController, DownloadController, ReportsController, CustomersController, BillsController, TallyController, AdminController, SettingsController, RatesController, ImagesController, RolesController, StockController, AuditController, AuthController, SyncController, ApprovalsController],
   providers: [Db, AuthGuard],
 })
 export class AppModule {}

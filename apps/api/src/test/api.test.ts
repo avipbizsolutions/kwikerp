@@ -510,3 +510,140 @@ test('product photos: head office uploads, tablets download', async () => {
   assert.equal((await fetch(`${base}/items/${it.id}/photo`, { headers: { authorization: `Bearer ${cashierToken}` } })).status, 404);
 });
 
+
+// ---------------------------------------------------------------- stock & audit
+
+async function newLogin(role: string, location: string | null, name: string) {
+  const phone = `7${Math.floor(Math.random() * 1e9).toString().padStart(9, '0')}`;
+  const add = await call('POST', '/admin/users', ownerToken,
+    { name, phone, pin: '2580', roles: [{ role, location }] });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  const r = await call('POST', '/auth/login', '', { tenantCode: 'TROIKA', phone, pin: '2580' });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  return r.body.token as string;
+}
+
+test('user types: listed with the permission groups, editable, Owner locked', async () => {
+  const list = await call('GET', '/admin/roles', ownerToken);
+  assert.equal(list.status, 200);
+  assert.ok(list.body.groups.some((g: any) => g.name === 'Stock'));
+  for (const code of ['DISPATCH', 'ACCOUNTS', 'OUTLET']) assert.ok(list.body.roles.some((r: any) => r.code === code), code);
+  assert.equal(list.body.roles.find((r: any) => r.code === 'OUTLET').name, 'Store Manager');
+  const add = await call('POST', '/admin/roles', ownerToken,
+    { name: `Helper ${Math.random().toString(36).slice(2, 5)}`, allLocations: false, permissions: ['bill.create'] });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  assert.equal((await call('POST', '/admin/roles', ownerToken,
+    { code: add.body.code, name: 'Helper', allLocations: false, permissions: ['bill.create', 'nonsense'] })).status, 400);
+  assert.equal((await call('POST', '/admin/roles', ownerToken,
+    { code: 'OWNER', name: 'Boss', allLocations: true, permissions: [] })).status, 400);
+  assert.equal((await call('POST', '/admin/roles', ownerToken,
+    { code: add.body.code, name: 'Helper off', allLocations: false, permissions: [], isActive: false })).status, 201);
+  assert.equal((await call('GET', '/admin/roles', cashierToken)).status, 403);
+});
+
+test('dispatch → counter receives (short) → adjustment approved → count → audit', async () => {
+  const meta = (await call('GET', '/stock/meta', ownerToken)).body;
+  const plant = meta.locations.find((l: any) => l.code === 'PLANT');
+  const dd3 = meta.locations.find((l: any) => l.code === 'DD3');
+  const item = meta.items.find((i: any) => i.mrp > 0);
+  assert.ok(plant.sends_goods && item);
+  const dispatcher = await newLogin('DISPATCH', 'PLANT', 'Test Dispatch');
+  const accounts = await newLogin('ACCOUNTS', null, 'Test Accounts');
+  const here0 = (await call('GET', '/stock/here', cashierToken)).body.items.find((x: any) => x.item_id === item.id)?.qty ?? 0;
+
+  // Dispatch can only send from the plant
+  const bad = await call('POST', '/stock/dispatch', dispatcher,
+    { id: randomUUID(), from: dd3.id, to: plant.id, send: true, lines: [{ itemId: item.id, qty: 1 }] });
+  assert.equal(bad.status, 400, JSON.stringify(bad.body)); // DD3 does not send goods
+  const id = randomUUID();
+  const sent = await call('POST', '/stock/dispatch', dispatcher,
+    { id, from: plant.id, to: dd3.id, vehicle: 'BR01', send: true, lines: [{ itemId: item.id, qty: 10 }] });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.match(sent.body.docNo, /^PLANT-W1-\d{4}-\d{4}$/);
+  const again = await call('POST', '/stock/dispatch', dispatcher,
+    { id, from: plant.id, to: dd3.id, send: true, lines: [{ itemId: item.id, qty: 10 }] });
+  assert.equal(again.body.docNo, sent.body.docNo, 'a retry does not send twice');
+
+  // The DD3 tablet sees it as incoming and receives 8 (2 short)
+  const incoming = (await call('GET', '/stock/transfers?incoming=1', cashierToken)).body;
+  assert.ok(incoming.some((t: any) => t.id === id));
+  const t = (await call('GET', `/stock/transfers/${id}`, cashierToken)).body;
+  assert.equal((await call('POST', `/stock/transfers/${id}/receive`, cashierToken,
+    { lines: [{ id: t.lines[0].id, received: 8 }] })).status, 400, 'a difference needs a reason');
+  const rec = await call('POST', `/stock/transfers/${id}/receive`, cashierToken,
+    { lines: [{ id: t.lines[0].id, received: 8, reason: 'short' }] });
+  assert.equal(rec.status, 201, JSON.stringify(rec.body));
+  assert.equal(rec.body.hasDifference, true);
+  const here1 = (await call('GET', '/stock/here', cashierToken)).body.items.find((x: any) => x.item_id === item.id).qty;
+  assert.equal(here1, here0 + 8);
+
+  // Counter asks to write off 2 expired; the cashier cannot approve; the owner can
+  const adj = randomUUID();
+  const ask = await call('POST', '/stock/adjustments', cashierToken,
+    { id: adj, itemId: item.id, qty: -2, reason: 'expired', note: 'test' });
+  assert.equal(ask.status, 201, JSON.stringify(ask.body));
+  assert.equal(ask.body.value, Math.round(2 * item.mrp * 100) / 100);
+  assert.equal((await call('POST', `/stock/adjustments/${adj}/decide`, cashierToken, { approve: true })).status, 403);
+  const here2a = (await call('GET', '/stock/here', cashierToken)).body.items.find((x: any) => x.item_id === item.id).qty;
+  assert.equal(here2a, here1, 'stock unchanged until approved');
+  const ok = await call('POST', `/stock/adjustments/${adj}/decide`, ownerToken, { approve: true });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  const here2 = (await call('GET', '/stock/here', cashierToken)).body.items.find((x: any) => x.item_id === item.id).qty;
+  assert.equal(here2, here1 - 2);
+
+  // Above the limit a manager cannot approve
+  await call('POST', '/settings/stock', ownerToken, { ownerAbove: 500 });
+  const manager = await newLogin('MANAGER', null, 'Test Manager');
+  const big = randomUUID();
+  const bigQty = Math.ceil(501 / item.mrp) + 1;
+  const askBig = await call('POST', '/stock/adjustments', cashierToken, { id: big, itemId: item.id, qty: -bigQty, reason: 'broken' });
+  assert.equal(askBig.body.needsOwner, true);
+  assert.equal((await call('POST', `/stock/adjustments/${big}/decide`, manager, { approve: true })).status, 403);
+  assert.equal((await call('POST', `/stock/adjustments/${big}/decide`, manager, { approve: false })).status, 403);
+  assert.equal((await call('POST', `/stock/adjustments/${big}/decide`, ownerToken, { approve: false, note: 'recount' })).status, 201);
+
+  // Accounts counts DD3 from the web page: one more than the system
+  const cnt = randomUUID();
+  const counted = await call('POST', '/stock/counts', accounts, { id: cnt, location: dd3.id, lines: [{ itemId: item.id, counted: here2 + 1 }] });
+  assert.equal(counted.status, 201, JSON.stringify(counted.body));
+  assert.equal(counted.body.lines[0].diff, 1);
+  const pending = (await call('GET', '/stock/adjustments', manager)).body;
+  assert.ok(pending.some((a: any) => a.count_id === cnt && a.qty === 1));
+
+  // Head-office views
+  const pos = await call('GET', '/stock/position', accounts);
+  assert.equal(pos.status, 200);
+  assert.equal(pos.body.items.find((i: any) => i.id === item.id).qty[dd3.id], here2);
+  assert.equal((await call('GET', '/stock/position', cashierToken)).status, 403);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const day = await call('GET', `/audit/day?location=${dd3.id}&date=${today}`, accounts);
+  assert.equal(day.status, 200, JSON.stringify(day.body));
+  const row = day.body.stock.find((r: any) => r.item_id === item.id);
+  assert.equal(row.received >= 8, true);
+  assert.equal(row.diff, 1);
+  assert.equal((await call('POST', '/audit/day', accounts, { location: dd3.id, date: today, status: 'query' })).status, 400);
+  assert.equal((await call('POST', '/audit/day', accounts, { location: dd3.id, date: today, status: 'verified', upiMatched: true })).status, 201);
+  assert.equal((await call('POST', '/audit/day', dispatcher, { location: dd3.id, date: today, status: 'verified' })).status, 403);
+  for (const type of ['daily', 'stock_diff', 'adjustments', 'dispatch', 'cash']) {
+    const r = await call('GET', `/audit/report?type=${type}&from=${today}&to=${today}`, accounts);
+    assert.equal(r.status, 200, `${type}: ${JSON.stringify(r.body)}`);
+    assert.ok(r.body.summary && Array.isArray(r.body.rows));
+  }
+  assert.equal((await call('GET', '/audit/overview', accounts)).status, 200);
+});
+
+test('settings: companies and locations, a godown can send goods', async () => {
+  const org = (await call('GET', '/settings/org', ownerToken)).body;
+  assert.ok(org.companies.length >= 1);
+  const code = `G${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+  const add = await call('POST', '/settings/location', ownerToken,
+    { code, name: 'Test godown', kind: 'godown', sendsGoods: true, supplyFrom: 'PLANT' });
+  assert.equal(add.status, 201, JSON.stringify(add.body));
+  assert.equal((await call('POST', '/settings/location', ownerToken,
+    { code, name: 'Dup', kind: 'godown' })).status, 400);
+  const c = org.companies[0];
+  assert.equal((await call('POST', '/settings/company', ownerToken,
+    { id: c.id, code: c.code, legalName: c.legal_name, stateCode: c.state_code, brandName: 'Dugdh Dhara', pan: 'bad' })).status, 400);
+  assert.equal((await call('POST', '/settings/company', ownerToken,
+    { id: c.id, code: c.code, legalName: c.legal_name, stateCode: c.state_code, brandName: 'Dugdh Dhara' })).status, 201);
+});

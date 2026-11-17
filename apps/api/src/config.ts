@@ -15,4 +15,6 @@ export const config = {
   // Folder holding kwikerp-pos.apk, served at /api/download/pos.apk
   downloadDir: process.env.DOWNLOAD_DIR ?? '/opt/kwikerp/downloads',
   tokenHours: Number(process.env.TOKEN_HOURS ?? 24 * 30),
+  // Business day for stock and audit (dates of transfers, counts, adjustments)
+  timeZone: process.env.APP_TIME_ZONE ?? 'Asia/Kolkata',
 };
