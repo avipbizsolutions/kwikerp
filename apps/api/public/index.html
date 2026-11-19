@@ -156,7 +156,13 @@
       <label for="phone">Mobile number</label>
       <input id="phone" inputmode="tel" autocomplete="username" required>
       <label for="pin">PIN</label>
-      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" required>
+      <div style="position:relative">
+        <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" required style="padding-right:52px">
+        <button type="button" id="pinEye" aria-label="Show PIN" aria-pressed="false"
+          style="position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path data-slash d="M4 4l16 16" style="display:none"/></svg>
+        </button>
+      </div>
       <div id="loginMsg"></div>
       <div class="actions"><button class="primary" type="submit">Log in</button></div>
     </form>
@@ -675,6 +681,14 @@
   function showLogin() { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); }
   function logout() { token = null; me = null; store.set('kwik_token', null); clearInterval(timer); showLogin(); }
   $('logout').onclick = logout;
+  $('pinEye').onclick = () => {
+    const show = $('pin').type === 'password';
+    $('pin').type = show ? 'text' : 'password';
+    $('pinEye').setAttribute('aria-pressed', String(show));
+    $('pinEye').setAttribute('aria-label', show ? 'Hide PIN' : 'Show PIN');
+    $('pinEye').querySelector('[data-slash]').style.display = show ? '' : 'none';
+    $('pin').focus();
+  };
   const savedTenant = store.get('kwik_tenant'); if (savedTenant) $('tenant').value = savedTenant;
   const savedPhone = store.get('kwik_phone'); if (savedPhone) $('phone').value = savedPhone;
 

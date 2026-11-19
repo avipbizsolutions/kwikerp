@@ -59,3 +59,39 @@ void showError(BuildContext context, Object e) {
     SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Kc.red),
   );
 }
+
+
+/// PIN box with an eye button to show or hide what was typed.
+class PinField extends StatefulWidget {
+  const PinField({super.key, required this.controller, this.label = 'PIN', this.onSubmitted});
+  final TextEditingController controller;
+  final String label;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<PinField> createState() => _PinFieldState();
+}
+
+class _PinFieldState extends State<PinField> {
+  bool _hidden = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      keyboardType: TextInputType.number,
+      obscureText: _hidden,
+      maxLength: 6,
+      onSubmitted: widget.onSubmitted,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        counterText: '',
+        suffixIcon: IconButton(
+          tooltip: _hidden ? 'Show PIN' : 'Hide PIN',
+          icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+          onPressed: () => setState(() => _hidden = !_hidden),
+        ),
+      ),
+    );
+  }
+}

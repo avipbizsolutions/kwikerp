@@ -243,12 +243,7 @@ class _BillRow extends StatelessWidget {
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: "Manager's mobile")),
                 const SizedBox(height: 8),
-                TextField(
-                    controller: pin,
-                    keyboardType: TextInputType.number,
-                    obscureText: true,
-                    maxLength: 6,
-                    decoration: const InputDecoration(labelText: "Manager's PIN", counterText: '')),
+                PinField(controller: pin, label: "Manager's PIN"),
               ],
               if (error != null) ...[
                 const SizedBox(height: 10),
